@@ -139,6 +139,8 @@ class Integer(Number):
     value: int
     class_head_name = "System`Integer"
 
+    # We use __new__ here to unsure that two Integer's that have the same value
+    # return the same object.
     def __new__(cls, value) -> "Integer":
         n = int(value)
         self = super(Integer, cls).__new__(cls)
@@ -752,7 +754,6 @@ class String(Atom):
 
     def boxes_to_text(self, show_string_characters=False, **options) -> str:
         value = self.value
-
         if (
             not show_string_characters
             and value.startswith('"')  # nopep8
@@ -766,6 +767,10 @@ class String(Atom):
         from mathics.core.parser import is_symbol_name
         from mathics.builtin import builtins_by_module
 
+        # comment @mmatera:  This piece of code loads all the operators
+        # in all the modules.
+        # Maybe it should be build and stored once in mathics.builtin object.
+        #
         operators = set()
         for modname, builtins in builtins_by_module.items():
             for builtin in builtins:
@@ -920,6 +925,8 @@ class ByteArrayAtom(Atom):
     value: str
     class_head_name = "System`ByteArrayAtom"
 
+    # We use __new__ here to unsure that two ByteArrayAtom's that have the same value
+    # return the same object.
     def __new__(cls, value):
         self = super().__new__(cls)
         if type(value) in (bytes, bytearray):
