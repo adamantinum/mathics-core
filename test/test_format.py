@@ -74,11 +74,11 @@ def test_makeboxes_outputform_tex_failing(
         ('"-4.32`4"', "-4.320", "This is what WMA does."),
         ('"-4.32313213213`2"', "-4.32", "This is what WMA does."),
         # Boxerror
-        ("Subscript[a, 4]", "Subscript[a, 4]", "Should't raise a BoxError"),
+        ("Subscript[a, 4]", "Subscript[a, 4]", "Shouldn't raise a BoxError"),
         (
             "Subsuperscript[a, p, q]",
             "Subsuperscript[a, p, q]",
-            "Should't raise a BoxError",
+            "Shouldn't raise a BoxError",
         ),
         (
             "Integrate[F[x],{x,a,g[b]}]",
@@ -95,7 +95,7 @@ def test_makeboxes_outputform_tex_failing(
         (
             "Sqrt[1/(1+1/(1+1/a))]",
             "Sqrt[ ( 1 ) / ( 1+ ( 1 ) / ( 1+ ( 1 ) / ( a )  )  ) ]",
-            "Should't raise a BoxError",
+            "Shouldn't raise a BoxError",
         ),
     ],
 )
