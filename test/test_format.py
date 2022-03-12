@@ -19,9 +19,17 @@ import pytest
 @pytest.mark.parametrize(
     ("str_expr", "str_expected", "msg"),
     [
-        ('"-4.32"', "-4.32", "This is what WMA does."),
-        ('"-4.32`4"', "-4.320", "This is what WMA does."),
-        ('"-4.32313213213`2"', "-4.32", "This is what WMA does."),
+        (
+            '"-4.32"',
+            "-4.32",
+            "It is a number, so in TeX shouldn't be inside \\text. This is what WMA does.",
+        ),
+        (
+            '"-4.32`4"',
+            "-4.320",
+            "It is a number, so in TeX shouldn't be inside \\text. This is what WMA does: adds 0s covering all the significant digits.",
+        ),
+        ('"-4.32313213213`2"', "-4.32", "This is what WMA does (same spirit)."),
         ("\[Pi]", "\\pi", None),
     ],
 )
