@@ -9,10 +9,20 @@ session = MathicsSession()
 import pytest
 
 
+# comment @mmatera: In these tests I tried to check that the current behavior of
+# makeboxes does not change without noticing that it could affect both compatibility with
+# WL and with mathics-django. Also looking at some issues in the curren behavior regarding
+# the WL standard (for instance, how to represent $a^(b/c)$) and the Mathics own
+# implementation (BoxError raising in some simple conditions).
+
+
 @pytest.mark.parametrize(
     ("str_expr", "str_expected", "msg"),
     [
-        ('"4.32313213213`2"', "\\text{4.32`2}", None),
+        ('"-4.32"', "-4.32", "This is what WMA does."),
+        ('"-4.32`4"', "-4.320", "This is what WMA does."),
+        ('"-4.32313213213`2"', "-4.32", "This is what WMA does."),
+        ("\[Pi]", "\\pi", None),
     ],
 )
 @pytest.mark.xfail
@@ -35,7 +45,9 @@ def test_makeboxes_standardform_tex_failing(
 @pytest.mark.parametrize(
     ("str_expr", "str_expected", "msg"),
     [
-        ('"4.32313213213`2"', "\\text{4.32`2}", None),
+        ('"-4.32"', "-4.32", "This is what WMA does."),
+        ('"-4.32`4"', "-4.320", "This is what WMA does."),
+        ('"-4.32313213213`2"', "-4.32", "This is what WMA does."),
     ],
 )
 @pytest.mark.xfail
@@ -58,22 +70,32 @@ def test_makeboxes_outputform_tex_failing(
 @pytest.mark.parametrize(
     ("str_expr", "str_expected", "msg"),
     [
-        ('"4.32313213213`2"', "4.32`2", None),
+        ('"-4.32"', "-4.32", "This is what WMA does."),
+        ('"-4.32`4"', "-4.320", "This is what WMA does."),
+        ('"-4.32313213213`2"', "-4.32", "This is what WMA does."),
         # Boxerror
-        ("Subscript[a, 4]", "Subscript[a, 4]", None),
-        ("Subsuperscript[a, p, q]", "Subsuperscript[a, p, q]", None),
+        ("Subscript[a, 4]", "Subscript[a, 4]", "Should't raise a BoxError"),
+        (
+            "Subsuperscript[a, p, q]",
+            "Subsuperscript[a, p, q]",
+            "Should't raise a BoxError",
+        ),
         (
             "Integrate[F[x],{x,a,g[b]}]",
             "Subsuperscript[∫, a, g[b]]\u2062F[x]\u2062\uf74cx",
             None,
         ),
         # This seems to be wrong...
-        ("a^(b/c)", "a^( ( b ) / ( c ) )", None),
+        (
+            "a^(b/c)",
+            "a^( ( b ) / ( c ) )",
+            "Parentheses in the exponent are important here",
+        ),
         # Boxerror
         (
             "Sqrt[1/(1+1/(1+1/a))]",
             "Sqrt[ ( 1 ) / ( 1+ ( 1 ) / ( 1+ ( 1 ) / ( a )  )  ) ]",
-            None,
+            "Should't raise a BoxError",
         ),
     ],
 )
@@ -97,7 +119,8 @@ def test_makeboxes_standardform_text_failing(
 @pytest.mark.parametrize(
     ("str_expr", "str_expected", "msg"),
     [
-        ('"4.32313213213`2"', "4.32`2", None),
+        ('"-4.32`4"', "-4.320", "This is what WMA does."),
+        ('"-4.32313213213`2"', "-4.32", "This is what WMA does."),
     ],
 )
 @pytest.mark.xfail
@@ -121,7 +144,8 @@ def test_makeboxes_outputform_text_tofix(
 @pytest.mark.parametrize(
     ("str_expr", "str_expected", "msg"),
     [
-        ('"4.32313213213`2"', "<mtext>4.32`2</mtext>", None),
+        ("4.32`4", "<mn>4.32`4</mn>", None),
+        ("4.32313213213`2", "<mn>4.32`2</mn>", None),
     ],
 )
 @pytest.mark.xfail
@@ -144,58 +168,64 @@ def test_makeboxes_outputform_mathml_failing(
 
 
 # MathML StandardForm
+#
+# These tests tries to ensure that atomic elements as
+# well as compound elements be represented exactly like
+# they are now in mathics-django. This does not mach necesarily with
+# the behavior in WMA.
+
+
 @pytest.mark.parametrize(
     ("str_expr", "str_expected", "msg"),
     [
-        ('"4"', "<mtext>4</mtext>", None),
-        # The following seems wrong: they should be formatted as numbers
-        ("4", "<mn>4</mn>", None),
-        ('"4.32"', "<mtext>4.32</mtext>", None),
-        ('"Hola!"', "<mtext>Hola!</mtext>", None),
-        ("a", "<mi>a</mi>", None),
-        ("Pi", "<mi>Pi</mi>", None),
+        ("4", "<mn>4</mn>", "An Integer"),
+        ('"4"', "<mtext>4</mtext>", "A string with a number"),
+        ('"4.32"', "<mtext>4.32</mtext>", "A Real number"),
+        ('"Hola!"', "<mtext>Hola!</mtext>", "A string"),
+        ("a", "<mi>a</mi>", "A symbol"),
+        ("\[Pi]", "<mi>Pi</mi>", "A greek letter symbol"),
         (
             "a^4",
             "<mrow><mi>a</mi> <mtext>&nbsp;^&nbsp;</mtext> <mn>4</mn></mrow>",
-            None,
+            "SuperscriptBox",
         ),
         (
             "Subscript[a, 4]",
             "<mrow><mi>Subscript</mi> <mo>[</mo> <mrow><mi>a</mi> <mtext>,&nbsp;</mtext> <mn>4</mn></mrow> <mo>]</mo></mrow>",
-            None,
+            "SubscriptBox",
         ),
         (
             "Subsuperscript[a, p, q]",
             "<mrow><mi>Subsuperscript</mi> <mo>[</mo> <mrow><mi>a</mi> <mtext>,&nbsp;</mtext> <mi>p</mi> <mtext>,&nbsp;</mtext> <mi>q</mi></mrow> <mo>]</mo></mrow>",
-            None,
+            "SubsuperscriptBox",
         ),
         (
             "Integrate[F[x],{x,a,g[b]}]",
             "<mrow><mi>Integrate</mi> <mo>[</mo> <mrow><mrow><mi>F</mi> <mo>[</mo> <mi>x</mi> <mo>]</mo></mrow> <mtext>,&nbsp;</mtext> <mrow><mo>{</mo> <mrow><mi>x</mi> <mtext>,&nbsp;</mtext> <mi>a</mi> <mtext>,&nbsp;</mtext> <mrow><mi>g</mi> <mo>[</mo> <mi>b</mi> <mo>]</mo></mrow></mrow> <mo>}</mo></mrow></mrow> <mo>]</mo></mrow>",
-            None,
+            "Non trivial SubsuperscriptBox",
         ),
         # This seems to be wrong...
         (
             "a^(b/c)",
             "<mrow><mi>a</mi> <mtext>&nbsp;^&nbsp;</mtext> <mrow><mo>(</mo> <mrow><mi>b</mi> <mtext>&nbsp;/&nbsp;</mtext> <mi>c</mi></mrow> <mo>)</mo></mrow></mrow>",
-            None,
+            "SuperscriptBox with a nested expression.",
         ),
         (
             "1/(1+1/(1+1/a))",
             "<mrow><mn>1</mn> <mtext>&nbsp;/&nbsp;</mtext> <mrow><mo>(</mo> <mrow><mn>1</mn> <mtext>&nbsp;+&nbsp;</mtext> <mrow><mn>1</mn> <mtext>&nbsp;/&nbsp;</mtext> <mrow><mo>(</mo> <mrow><mn>1</mn> <mtext>&nbsp;+&nbsp;</mtext> <mrow><mn>1</mn> <mtext>&nbsp;/&nbsp;</mtext> <mi>a</mi></mrow></mrow> <mo>)</mo></mrow></mrow></mrow> <mo>)</mo></mrow></mrow>",
-            None,
+            "FractionBox",
         ),
         (
             "Sqrt[1/(1+1/(1+1/a))]",
             "<mrow><mi>Sqrt</mi> <mo>[</mo> <mrow><mn>1</mn> <mtext>&nbsp;/&nbsp;</mtext> <mrow><mo>(</mo> <mrow><mn>1</mn> <mtext>&nbsp;+&nbsp;</mtext> <mrow><mn>1</mn> <mtext>&nbsp;/&nbsp;</mtext> <mrow><mo>(</mo> <mrow><mn>1</mn> <mtext>&nbsp;+&nbsp;</mtext> <mrow><mn>1</mn> <mtext>&nbsp;/&nbsp;</mtext> <mi>a</mi></mrow></mrow> <mo>)</mo></mrow></mrow></mrow> <mo>)</mo></mrow></mrow> <mo>]</mo></mrow>",
-            None,
+            "SqrtBox",
         ),
         (
             "Graphics[{}]",
             (
                 '<mglyph width="350px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMnB4IiBoZWlnaHQ9IjJweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9Ii0xLjAwMDAwMCAtMS4wMDAwMDAgMi4wMDAwMDAgMi4wMDAwMDAiPgogICAgICAgICAgICAgICAgPCEtLUdyYXBoaWNzRWxlbWVudHMtLT4KPC9zdmc+Cg=="/>'
             ),
-            None,
+            "GraphicsBox",
         ),
         # These tests requires ``evaluation`` as a parameter.
         (
@@ -206,7 +236,7 @@ def test_makeboxes_outputform_mathml_failing(
                 '<mtr><mtd columnalign="center"><mi>c</mi></mtd><mtd columnalign="center"><mi>d</mi></mtd></mtr>\n'
                 "</mtable>"
             ),
-            None,
+            "GridBox",
         ),
         (
             "TableForm[{{a,b},{c,d}}]",
@@ -216,7 +246,7 @@ def test_makeboxes_outputform_mathml_failing(
                 '<mtr><mtd columnalign="center"><mi>c</mi></mtd><mtd columnalign="center"><mi>d</mi></mtd></mtr>\n'
                 "</mtable>"
             ),
-            None,
+            "GridBox in a table",
         ),
         (
             "MatrixForm[{{a,b},{c,d}}]",
@@ -226,14 +256,14 @@ def test_makeboxes_outputform_mathml_failing(
                 '<mtr><mtd columnalign="center"><mi>c</mi></mtd><mtd columnalign="center"><mi>d</mi></mtd></mtr>\n'
                 "</mtable>"
             ),
-            None,
+            "GridBox in a matrix",
         ),
         (
             "Graphics[{Text[a^b,{0,0}]}]",
             (
                 '<mglyph width="294px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjEuMHB4IiBoZWlnaHQ9IjI1LjBweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9IjEzNi41MDAwMDAgMTYyLjUwMDAwMCAyMS4wMDAwMDAgMjUuMDAwMDAwIj4KICAgICAgICAgICAgICAgIDwhLS1HcmFwaGljc0VsZW1lbnRzLS0+Cjx0ZXh0IHg9IjE0Ny4wIiB5PSIxNzUuMCIgb3g9IjAiIG95PSIwIiBmb250LXNpemU9IjEwcHgiIHN0eWxlPSJ0ZXh0LWFuY2hvcjplbmQ7IGRvbWluYW50LWJhc2VsaW5lOmhhbmdpbmc7IHN0cm9rZTogcmdiKDAuMDAwMDAwJSwgMC4wMDAwMDAlLCAwLjAwMDAwMCUpOyBzdHJva2Utb3BhY2l0eTogMTsgZmlsbDogcmdiKDAuMDAwMDAwJSwgMC4wMDAwMDAlLCAwLjAwMDAwMCUpOyBmaWxsLW9wYWNpdHk6IDE7IGNvbG9yOiByZ2IoMC4wMDAwMDAlLCAwLjAwMDAwMCUsIDAuMDAwMDAwJSk7IG9wYWNpdHk6IDEuMCI+YV5iPC90ZXh0Pgo8L3N2Zz4K"/>'
             ),
-            None,
+            "Nontrivial Graphics",
         ),
         (
             "TableForm[{Graphics[{Text[a^b,{0,0}]}], Graphics[{Text[a^b,{0,0}]}]}]",
@@ -243,7 +273,7 @@ def test_makeboxes_outputform_mathml_failing(
                 '<mtr><mtd columnalign="center"><mglyph width="147px" height="175px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjEuMHB4IiBoZWlnaHQ9IjI1LjBweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9IjYzLjAwMDAwMCA3NS4wMDAwMDAgMjEuMDAwMDAwIDI1LjAwMDAwMCI+CiAgICAgICAgICAgICAgICA8IS0tR3JhcGhpY3NFbGVtZW50cy0tPgo8dGV4dCB4PSI3My41IiB5PSI4Ny41IiBveD0iMCIgb3k9IjAiIGZvbnQtc2l6ZT0iMTBweCIgc3R5bGU9InRleHQtYW5jaG9yOmVuZDsgZG9taW5hbnQtYmFzZWxpbmU6aGFuZ2luZzsgc3Ryb2tlOiByZ2IoMC4wMDAwMDAlLCAwLjAwMDAwMCUsIDAuMDAwMDAwJSk7IHN0cm9rZS1vcGFjaXR5OiAxOyBmaWxsOiByZ2IoMC4wMDAwMDAlLCAwLjAwMDAwMCUsIDAuMDAwMDAwJSk7IGZpbGwtb3BhY2l0eTogMTsgY29sb3I6IHJnYigwLjAwMDAwMCUsIDAuMDAwMDAwJSwgMC4wMDAwMDAlKTsgb3BhY2l0eTogMS4wIj5hXmI8L3RleHQ+Cjwvc3ZnPgo="/></mtd></mtr>\n'
                 "</mtable>"
             ),
-            None,
+            "A table of graphics",
         ),
     ],
 )
@@ -275,19 +305,23 @@ def test_makeboxes_outputform_mathml(
         ('"4.32"', "4.32", None),
         ('"Hola!"', "Hola!", None),
         ("a", "a", None),
-        ("Pi", "Pi", None),
+        ("\[Pi]", "Pi", None),
         ("a^4", "a^4", None),
-        ("1/(1+1/(1+1/a))", " ( 1 ) / ( 1+ ( 1 ) / ( 1+ ( 1 ) / ( a )  )  ) ", None),
-        ("Graphics[{}]", "-Graphics-", None),
+        (
+            "1/(1+1/(1+1/a))",
+            " ( 1 ) / ( 1+ ( 1 ) / ( 1+ ( 1 ) / ( a )  )  ) ",
+            "FractionBox",
+        ),
+        ("Graphics[{}]", "-Graphics-", "GraphicsBox"),
         # These tests requires ``evaluation`` as a parameter.
-        ("Grid[{{a,b},{c,d}}]", "a   b\n\nc   d\n", None),
-        ("TableForm[{{a,b},{c,d}}]", "a   b\n\nc   d\n", None),
-        ("MatrixForm[{{a,b},{c,d}}]", "(a   b\n\nc   d\n)", None),
-        ("Graphics[{Text[a^b,{0,0}]}]", "-Graphics-", None),
+        ("Grid[{{a,b},{c,d}}]", "a   b\n\nc   d\n", "GridBox"),
+        ("TableForm[{{a,b},{c,d}}]", "a   b\n\nc   d\n", "GridBox for TableForm"),
+        ("MatrixForm[{{a,b},{c,d}}]", "(a   b\n\nc   d\n)", "GridBox for MatrixForm"),
+        ("Graphics[{Text[a^b,{0,0}]}]", "-Graphics-", "Non trivial Graphics"),
         (
             "TableForm[{Graphics[{Text[a^b,{0,0}]}], Graphics[{Text[a^b,{0,0}]}]}]",
             ("-Graphics-\n\n-Graphics-\n"),
-            None,
+            "A table of graphics.",
         ),
     ],
 )
@@ -317,7 +351,7 @@ def test_makeboxes_standardform_text(
         ('"4.32"', "4.32", None),
         ('"Hola!"', "Hola!", None),
         ("a", "a", None),
-        ("Pi", "Pi", None),
+        ("\[Pi]", "Pi", None),
         ("a^4", "a ^ 4", None),
         ("Subscript[a, 4]", "Subscript[a, 4]", None),
         ("Subsuperscript[a, p, q]", "Subsuperscript[a, p, q]", None),
@@ -364,7 +398,6 @@ def test_makeboxes_outputform_text(
         ("4", "4", None),
         ('"4.32"', "\\text{4.32}", None),
         ('"Hola!"', "\\text{Hola!}", None),
-        ("Pi", "\\text{Pi}", None),
         ("a", "a", None),
         ("a^4", "a^4", None),
         ("Subscript[a, 4]", "a_4", None),
@@ -447,8 +480,8 @@ def test_makeboxes_standard_tex(str_expr: str, str_expected: str, msg: str, mess
         ("4", "4", None),
         ('"4.32"', "\\text{4.32}", None),
         ('"Hola!"', "\\text{Hola!}", None),
-        ("Pi", "\\text{Pi}", None),
         ("a", "a", None),
+        ("\[Pi]", "\\text{Pi}", None),
         ("a^4", "a\\text{ ${}^{\\wedge}$ }4", None),
         ("Subscript[a, 4]", "\\text{Subscript}\\left[a, 4\\right]", None),
         (
@@ -500,7 +533,7 @@ def test_makeboxes_standard_tex(str_expr: str, str_expected: str, msg: str, mess
                 '// InsetBox\nlabel("$a^b$", (147.0,175.0), (0,0), rgb(0, 0, 0));\n\n'
                 "clip(box((136.5,162.5), (157.5,187.5)));\n\n\\end{asy}\n"
             ),
-            None,
+            "Asy output for a Graphics expression",
         ),
         (
             "TableForm[{Graphics[{Text[a^b,{0,0}]}], Graphics[{Text[a^b,{0,0}]}]}]",
@@ -511,7 +544,7 @@ def test_makeboxes_standard_tex(str_expr: str, str_expected: str, msg: str, mess
                 'size(2.45cm, 2.9167cm);\n\n// InsetBox\nlabel("$a^b$", (73.5,87.5), (0,0), rgb(0, 0, 0));\n\n'
                 "clip(box((63,75), (84,100)));\n\n\\end{asy}\n\\end{array}"
             ),
-            None,
+            "Asy output for a table of Graphics expression",
         ),
     ],
 )
