@@ -28,14 +28,16 @@ MATHML_STRICT = True
 # This dict contains all the tests. The main key is an expression to be evaluated and
 # formatted. For each expression, we have a base message, and tests for each output box
 # mode ("text", "mathml" and "tex"). On each mode, we have a dict for the different formats.
-# If the value associated to a format is a string, the test is considered mandatory
-# (not xfail), and the assert message is the base message. If there is a tuple instead,
-# the test is against the first element of the tuple, and allowed to fail.
-# In this case, the assert message is the concatenation of the base message
-# and the second element of the tuple.
+# If the value associated to a format is a string and the message does not
+# finishes with "- Fragile!", the test is considered mandatory,
+# (not xfail), and the assert message is the base message.
+# If there is a tuple instead, the test is against the first element of the tuple,
+# and allowed to fail. In this case, the assert message is the
+# concatenation of the base message and the second element of the tuple.
 
 
 all_test = {
+    # Checking basic formats for atoms
     "-4": {
         "msg": "An Integer",
         "text": {
@@ -159,6 +161,7 @@ all_test = {
             "System`OutputForm": "\\text{Hola!}",
         },
     },
+    # String with special characters
     '"\\[Pi] is a trascendent number"': {
         "msg": "A String",
         "text": {
@@ -225,6 +228,7 @@ all_test = {
             "System`OutputForm": "\\text{-4.32}",
         },
     },
+    # Symbols
     "a": {
         "msg": "A Symbol",
         "text": {
@@ -276,6 +280,7 @@ all_test = {
             "System`OutputForm": "\\text{Pi}",
         },
     },
+    # Boxed expressions.
     "a^4": {
         "msg": "SuperscriptBox",
         "text": {
@@ -339,6 +344,7 @@ all_test = {
             "System`OutputForm": "\\text{Subsuperscript}\\left[a, p, q\\right]",
         },
     },
+    # Here I use Integrate to simplify the input.
     "Integrate[F[x], {x, a, g[b]}]": {
         "msg": "Non trivial SubsuperscriptBox",
         "text": {
@@ -366,6 +372,7 @@ all_test = {
             "System`OutputForm": "\\text{Integrate}\\left[F\\left[x\\right], \\left\\{x, a, g\\left[b\\right]\\right\\}\\right]",
         },
     },
+    # Nested compound expressions:
     "a^(b/c)": {
         "msg": "SuperscriptBox with a nested expression.",
         "text": {
@@ -438,27 +445,7 @@ all_test = {
             "System`OutputForm": "\\text{Sqrt}\\left[1\\text{ / }\\left(1\\text{ + }1\\text{ / }\\left(1\\text{ + }1\\text{ / }a\\right)\\right)\\right]",
         },
     },
-    "Graphics[{}]": {
-        "msg": "GraphicsBox",
-        "text": {
-            "System`StandardForm": "-Graphics-",
-            "System`TraditionalForm": "-Graphics-",
-            "System`InputForm": "Graphics[{}]",
-            "System`OutputForm": "-Graphics-",
-        },
-        "mathml": {
-            "System`StandardForm": '<mglyph width="350px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMnB4IiBoZWlnaHQ9IjJweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9Ii0xLjAwMDAwMCAtMS4wMDAwMDAgMi4wMDAwMDAgMi4wMDAwMDAiPgogICAgICAgICAgICAgICAgPCEtLUdyYXBoaWNzRWxlbWVudHMtLT4KPC9zdmc+Cg=="/>',
-            "System`TraditionalForm": '<mglyph width="350px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMnB4IiBoZWlnaHQ9IjJweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9Ii0xLjAwMDAwMCAtMS4wMDAwMDAgMi4wMDAwMDAgMi4wMDAwMDAiPgogICAgICAgICAgICAgICAgPCEtLUdyYXBoaWNzRWxlbWVudHMtLT4KPC9zdmc+Cg=="/>',
-            "System`InputForm": "<mrow><mi>Graphics</mi> <mo>[</mo> <mrow><mo>{</mo> <mo>}</mo></mrow> <mo>]</mo></mrow>",
-            "System`OutputForm": '<mglyph width="350px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMnB4IiBoZWlnaHQ9IjJweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9Ii0xLjAwMDAwMCAtMS4wMDAwMDAgMi4wMDAwMDAgMi4wMDAwMDAiPgogICAgICAgICAgICAgICAgPCEtLUdyYXBoaWNzRWxlbWVudHMtLT4KPC9zdmc+Cg=="/>',
-        },
-        "tex": {
-            "System`StandardForm": '\n\\begin{asy}\nusepackage("amsmath");\nsize(5.8333cm, 5.8333cm);\n\n\nclip(box((-1,-1), (1,1)));\n\n\\end{asy}\n',
-            "System`TraditionalForm": '\n\\begin{asy}\nusepackage("amsmath");\nsize(5.8333cm, 5.8333cm);\n\n\nclip(box((-1,-1), (1,1)));\n\n\\end{asy}\n',
-            "System`InputForm": "\\text{Graphics}\\left[\\left\\{\\right\\}\\right]",
-            "System`OutputForm": '\n\\begin{asy}\nusepackage("amsmath");\nsize(5.8333cm, 5.8333cm);\n\n\nclip(box((-1,-1), (1,1)));\n\n\\end{asy}\n',
-        },
-    },
+    # Grids, arrays and matrices
     "Grid[{{a,b},{c,d}}]": {
         "msg": "GridBox",
         "text": {
@@ -522,8 +509,31 @@ all_test = {
             "System`OutputForm": "\\begin{array}{cc} a & b\\\\ c & d\\end{array}",
         },
     },
+    # Boxes including Graphics.
+    # These tests could require to be re-generated
+    "Graphics[{}]": {
+        "msg": "GraphicsBox - Fragile!",
+        "text": {
+            "System`StandardForm": "-Graphics-",
+            "System`TraditionalForm": "-Graphics-",
+            "System`InputForm": "Graphics[{}]",
+            "System`OutputForm": "-Graphics-",
+        },
+        "mathml": {
+            "System`StandardForm": '<mglyph width="350px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMnB4IiBoZWlnaHQ9IjJweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9Ii0xLjAwMDAwMCAtMS4wMDAwMDAgMi4wMDAwMDAgMi4wMDAwMDAiPgogICAgICAgICAgICAgICAgPCEtLUdyYXBoaWNzRWxlbWVudHMtLT4KPC9zdmc+Cg=="/>',
+            "System`TraditionalForm": '<mglyph width="350px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMnB4IiBoZWlnaHQ9IjJweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9Ii0xLjAwMDAwMCAtMS4wMDAwMDAgMi4wMDAwMDAgMi4wMDAwMDAiPgogICAgICAgICAgICAgICAgPCEtLUdyYXBoaWNzRWxlbWVudHMtLT4KPC9zdmc+Cg=="/>',
+            "System`InputForm": "<mrow><mi>Graphics</mi> <mo>[</mo> <mrow><mo>{</mo> <mo>}</mo></mrow> <mo>]</mo></mrow>",
+            "System`OutputForm": '<mglyph width="350px" height="350px" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMnB4IiBoZWlnaHQ9IjJweCIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgICAgICAgICAgICAgIHZlcnNpb249IjEuMSIKICAgICAgICAgICAgICAgIHZpZXdCb3g9Ii0xLjAwMDAwMCAtMS4wMDAwMDAgMi4wMDAwMDAgMi4wMDAwMDAiPgogICAgICAgICAgICAgICAgPCEtLUdyYXBoaWNzRWxlbWVudHMtLT4KPC9zdmc+Cg=="/>',
+        },
+        "tex": {
+            "System`StandardForm": '\n\\begin{asy}\nusepackage("amsmath");\nsize(5.8333cm, 5.8333cm);\n\n\nclip(box((-1,-1), (1,1)));\n\n\\end{asy}\n',
+            "System`TraditionalForm": '\n\\begin{asy}\nusepackage("amsmath");\nsize(5.8333cm, 5.8333cm);\n\n\nclip(box((-1,-1), (1,1)));\n\n\\end{asy}\n',
+            "System`InputForm": "\\text{Graphics}\\left[\\left\\{\\right\\}\\right]",
+            "System`OutputForm": '\n\\begin{asy}\nusepackage("amsmath");\nsize(5.8333cm, 5.8333cm);\n\n\nclip(box((-1,-1), (1,1)));\n\n\\end{asy}\n',
+        },
+    },
     "Graphics[{Text[a^b,{0,0}]}]": {
-        "msg": "Nontrivial Graphics",
+        "msg": "Nontrivial Graphics - Fragile!",
         "text": {
             "System`StandardForm": "-Graphics-",
             "System`TraditionalForm": "-Graphics-",
@@ -544,7 +554,7 @@ all_test = {
         },
     },
     "TableForm[{Graphics[{Text[a^b,{0,0}]}], Graphics[{Text[a^b,{0,0}]}]}]": {
-        "msg": "A table of graphics",
+        "msg": "A table of graphics - Fragile!",
         "text": {
             "System`StandardForm": "-Graphics-\n\n-Graphics-\n",
             "System`TraditionalForm": "-Graphics-\n\n-Graphics-\n",
@@ -587,14 +597,24 @@ for expr in all_test:
                 )
             )
         else:
-            text_current_pass.append(
-                (
-                    expr,
-                    tst,
-                    form,
-                    base_msg,
+            if len(base_msg) > 8 and base_msg[-8:] == "Fragile!":
+                text_current_failing.append(
+                    (
+                        expr,
+                        tst,
+                        form,
+                        base_msg,
+                    )
                 )
-            )
+            else:
+                text_current_pass.append(
+                    (
+                        expr,
+                        tst,
+                        form,
+                        base_msg,
+                    )
+                )
 
 
 @pytest.mark.parametrize(
@@ -650,14 +670,24 @@ for expr in all_test:
                 )
             )
         else:
-            tex_current_pass.append(
-                (
-                    expr,
-                    tst,
-                    form,
-                    base_msg,
+            if len(base_msg) > 8 and base_msg[-8:] == "Fragile!":
+                tex_current_failing.append(
+                    (
+                        expr,
+                        tst,
+                        form,
+                        base_msg,
+                    )
                 )
-            )
+            else:
+                tex_current_pass.append(
+                    (
+                        expr,
+                        tst,
+                        form,
+                        base_msg,
+                    )
+                )
 
 
 @pytest.mark.parametrize(
@@ -713,8 +743,8 @@ for expr in all_test:
                 )
             )
         else:
-            if MATHML_STRICT:
-                mathml_current_pass.append(
+            if not MATHML_STRICT or (len(base_msg) > 8 and base_msg[-8:] == "Fragile!"):
+                mathml_current_failing.append(
                     (
                         expr,
                         tst,
@@ -723,7 +753,7 @@ for expr in all_test:
                     )
                 )
             else:
-                mathml_current_failing.append(
+                mathml_current_pass.append(
                     (
                         expr,
                         tst,
