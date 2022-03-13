@@ -16,6 +16,11 @@ import pytest
 # implementation (BoxError raising in some simple conditions).
 
 
+# Set this to False in case mathml tests must be considered xfail. With True, ensures the
+# compatibility with the current mathics-django branch.
+
+mathml_strict = True
+
 all_test = {
     "-4": {
         "msg": "An Integer",
@@ -694,14 +699,24 @@ for expr in all_test:
                 )
             )
         else:
-            mathml_current_pass.append(
-                (
-                    expr,
-                    tst,
-                    form,
-                    base_msg,
+            if mathml_strict:
+                mathml_current_pass.append(
+                    (
+                        expr,
+                        tst,
+                        form,
+                        base_msg,
+                    )
                 )
-            )
+            else:
+                mathml_current_failing.append(
+                    (
+                        expr,
+                        tst,
+                        form,
+                        base_msg,
+                    )
+                )
 
 
 @pytest.mark.parametrize(
