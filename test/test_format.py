@@ -8,18 +8,32 @@ session = MathicsSession()
 
 import pytest
 
-
-# comment @mmatera: In these tests I tried to check that the current behavior of
-# makeboxes does not change without noticing that it could affect both compatibility with
-# WL and with mathics-django. Also looking at some issues in the curren behavior regarding
-# the WL standard (for instance, how to represent $a^(b/c)$) and the Mathics own
-# implementation (BoxError raising in some simple conditions).
+#
+#  Aim of the tests:
+#
+# In these tests we check that the current behavior of makeboxes does not change
+# without noticing that it could affect both compatibility with WL and with
+# mathics-django. Also looking at some issues in the curren behavior regarding
+# the WL standard (for instance, how to represent $a^(b/c)$) and the Mathics
+# own implementation (BoxError raising in some simple conditions).
+# These test should be updated as we fix pending issues.
 
 
 # Set this to False in case mathml tests must be considered xfail. With True, ensures the
 # compatibility with the current mathics-django branch.
 
-mathml_strict = True
+MATHML_STRICT = True
+
+
+# This dict contains all the tests. The main key is an expression to be evaluated and
+# formatted. For each expression, we have a base message, and tests for each output box
+# mode ("text", "mathml" and "tex"). On each mode, we have a dict for the different formats.
+# If the value associated to a format is a string, the test is considered mandatory
+# (not xfail), and the assert message is the base message. If there is a tuple instead,
+# the test is against the first element of the tuple, and allowed to fail.
+# In this case, the assert message is the concatenation of the base message
+# and the second element of the tuple.
+
 
 all_test = {
     "-4": {
@@ -699,7 +713,7 @@ for expr in all_test:
                 )
             )
         else:
-            if mathml_strict:
+            if MATHML_STRICT:
                 mathml_current_pass.append(
                     (
                         expr,
