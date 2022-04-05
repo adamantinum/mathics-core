@@ -43,8 +43,8 @@ class Orthogonalize(Builtin):
     """
 
     options = {
-            "Method": "GramSchmidt"
-            "Tolerance":  0
+            "Method": "GramSchmidt",
+    }
 
     rules = {
             "Orthogonalize[expr_List]": "Orthogonalize[expr, Dot]"
@@ -52,11 +52,10 @@ class Orthogonalize(Builtin):
     
     summary_text = "gives an orthonormal basis for a given vector set"
 
-    def apply(self, expr, inner, evaluation):
-        "Orthogonalize[expr_List, inner_Symbol]"
+    def apply(self, expr, inner, evaluation, options={}):
+        "Orthogonalize[expr_List, inner_Symbol, OptionsPattern[%(name)s]]"
         
         def gram_schmidt(expr, inner):
-
             basis = Expression("List")
             for count, value in enumerate(expr.elements):
                 current_basis = value
@@ -69,5 +68,11 @@ class Orthogonalize(Builtin):
                 current_basis = Expression("Divide", current_basis, Expression("Norm", current_basis))
                 basis = Expression("Append", basis, current_basis)
             return basis
+        
 
-        return gram_schmidt(expr, inner)
+        method = self.get_option(options, "Method", evaluation)
+        
+        if method.get_string_value() == "GramSchmidt":
+            return gram_schmidt(expr, inner)
+        else:
+            return gram_schmidt(expr, inner)
