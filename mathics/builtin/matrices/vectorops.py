@@ -23,16 +23,15 @@ class Projection(Builtin):
 
     rules = {
             "Projection[a_List, b_List]": "Projection[a, b, Dot]"
-        }
+    }
 
     def apply(self, e1, e2, inner, evaluation):
         "Projection[e1_List, e2_List, inner_Symbol]"
 
         dot1 = Expression(inner, e1.elements, e2.elements)
         dot2 = Expression(inner, e2.elements, e2.elements)
-        
-        return Expression("Times", Expression("Divide", dot1, dot2), e2.elements)
 
+        return Expression("Times", Expression("Divide", dot1, dot2), e2.elements)
 
 class Orthogonalize(Builtin):
     """
@@ -43,7 +42,7 @@ class Orthogonalize(Builtin):
     """
 
     options = {
-            "Method": "GramSchmidt",
+            "Method": "GramSchmidt"
     }
 
     rules = {
@@ -52,7 +51,7 @@ class Orthogonalize(Builtin):
     
     summary_text = "gives an orthonormal basis for a given vector set"
 
-    def apply(self, expr, inner, evaluation, options={}):
+    def apply(self, expr, inner, evaluation, options=None):
         "Orthogonalize[expr_List, inner_Symbol, OptionsPattern[%(name)s]]"
         
         def gram_schmidt(expr, inner):
@@ -68,11 +67,20 @@ class Orthogonalize(Builtin):
                 current_basis = Expression("Divide", current_basis, Expression("Norm", current_basis))
                 basis = Expression("Append", basis, current_basis)
             return basis
-        
 
-        method = self.get_option(options, "Method", evaluation)
+        def modified_gram_schmidt(expr, inner):
+            basis = Expression("List")
+            for count, value in enumerate(expr.elements):
+                current_basis = Expression("Divide", value, Expression("Norm", value))
+            return basis
+            
+        def householder_transformation(expr, inner):
+            h_matrix =
+            basis = Expression("List")
+            return basis
         
-        if method.get_string_value() == "GramSchmidt":
+        method = self.get_option(options, "Method", evaluation).get_string_value()
+        if method == "GramSchmidt":
             return gram_schmidt(expr, inner)
         else:
-            return gram_schmidt(expr, inner)
+            return Expression("Print", method)#gram_schmidt(expr, inner)
