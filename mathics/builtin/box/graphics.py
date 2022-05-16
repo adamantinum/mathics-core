@@ -11,8 +11,13 @@ from mathics.builtin.base import (
     BoxConstructError,
 )
 
-from mathics.builtin.colors.color_directives import _ColorObject, ColorError, RGBColor
-from mathics.builtin.drawing.graphics_internals import _GraphicsElement, GLOBALS
+from mathics.builtin.colors.color_directives import (
+    _ColorObject,
+    ColorError,
+    Opacity,
+    RGBColor,
+)
+from mathics.builtin.drawing.graphics_internals import _GraphicsElementBox, GLOBALS
 
 from mathics.builtin.graphics import (
     Arrowheads,
@@ -48,15 +53,18 @@ from mathics.core.attributes import hold_all, protected, read_protected
 
 
 # Note: has to come before _ArcBox
-class _RoundBox(_GraphicsElement):
+class _RoundBox(_GraphicsElementBox):
     face_element = None
 
     def init(self, graphics, style, item):
         super(_RoundBox, self).init(graphics, item, style)
-        if len(item._elements) not in (1, 2):
+        if len(item.elements) not in (1, 2):
             raise BoxConstructError
         self.edge_color, self.face_color = style.get_style(
             _ColorObject, face_element=self.face_element
+        )
+        self.edge_opacity, self.face_opacity = style.get_style(
+            Opacity, face_element=self.face_element
         )
         self.c = Coords(graphics, item.elements[0])
         if len(item.elements) == 1:
@@ -180,6 +188,7 @@ class ArrowBox(_Polyline):
         self.do_init(graphics, curve_points)
         self.graphics = graphics
         self.edge_color, _ = style.get_style(_ColorObject, face_element=False)
+        self.edge_opacity, _ = style.get_style(Opacity, face_element=False)
         self.heads, _ = style.get_style(Arrowheads, face_element=False)
 
     @staticmethod
@@ -347,6 +356,7 @@ class BezierCurveBox(_Polyline):
         if len(item.elements) != 1 or item.elements[0].get_head_name() != "System`List":
             raise BoxConstructError
         self.edge_color, _ = style.get_style(_ColorObject, face_element=False)
+        self.edge_opacity, _ = style.get_style(Opacity, face_element=False)
         points = item.elements[0]
         self.do_init(graphics, points)
         spline_degree = options.get("System`SplineDegree")
@@ -363,8 +373,8 @@ class CircleBox(_ArcBox):
     </dl>
     """
 
-    summary_text = "internal box representation for 'Circle' elements"
     face_element = False
+    summary_text = "internal box representation for 'Circle' elements"
 
 
 class DiskBox(_ArcBox):
@@ -375,8 +385,8 @@ class DiskBox(_ArcBox):
     </dl>
     """
 
-    summary_text = "internal box representation for 'Disk' elements"
     face_element = True
+    summary_text = "internal box representation for 'Disk' elements"
 
 
 class GraphicsBox(BoxConstruct):
@@ -390,18 +400,26 @@ class GraphicsBox(BoxConstruct):
     Graphics.
     """
 
-    options = Graphics.options
-
     attributes = hold_all | protected | read_protected
+    options = Graphics.options
 
     def __new__(cls, *elements, **kwargs):
         instance = super().__new__(cls, *elements, **kwargs)
         instance.evaluation = kwargs.get("evaluation", None)
-        instance._elements = elements
+        instance.elements = elements
         return instance
 
     def to_expression(self):
         return self
+
+    @property
+    def elements(self):
+        return self._elements
+
+    @elements.setter
+    def elements(self, value):
+        self._elements = value
+        return self._elements
 
     def get_elements(self):
         return self._elements
@@ -942,7 +960,7 @@ clip(%s);
             add_element(LineBox(elements, axes_style[1], lines=ticks))"""
 
 
-class FilledCurveBox(_GraphicsElement):
+class FilledCurveBox(_GraphicsElementBox):
     """
     <dl>
     <dt>'FilledCurveBox[...]'
@@ -955,7 +973,9 @@ class FilledCurveBox(_GraphicsElement):
         self.edge_color, self.face_color = style.get_style(
             _ColorObject, face_element=True
         )
-
+        self.edge_opacity, self.face_opacity = style.get_style(
+            Opacity, face_element=True
+        )
         if (
             item is not None
             and item.elements
@@ -1020,7 +1040,7 @@ class FilledCurveBox(_GraphicsElement):
         return result
 
 
-class InsetBox(_GraphicsElement):
+class InsetBox(_GraphicsElementBox):
     def init(
         self,
         graphics,
@@ -1029,13 +1049,22 @@ class InsetBox(_GraphicsElement):
         content=None,
         pos=None,
         opos=(0, 0),
-        opacity=1.0,
+        opacity=None,
     ):
         super(InsetBox, self).init(graphics, item, style)
 
         self.color = self.style.get_option("System`FontColor")
         if self.color is None:
             self.color, _ = style.get_style(_ColorObject, face_element=False)
+
+        if opacity is None:
+            opacity, _ = style.get_style(Opacity, face_element=False)
+        else:
+            opacity = Opacity(opacity)
+
+        if opacity is None:
+            opacity = Opacity(1.0)
+
         self.opacity = opacity
 
         if item is not None:
@@ -1075,6 +1104,7 @@ class LineBox(_Polyline):
     def init(self, graphics, style, item=None, lines=None):
         super(LineBox, self).init(graphics, item, style)
         self.edge_color, _ = style.get_style(_ColorObject, face_element=False)
+        self.edge_opacity, _ = style.get_style(Opacity, face_element=False)
         if item is not None:
             if len(item.elements) != 1:
                 raise BoxConstructError
@@ -1088,11 +1118,19 @@ class LineBox(_Polyline):
 
 class PointBox(_Polyline):
     """
-    Boxing methods for a list of Point.
-
-    object attributes:
-    edge_color: _ColorObject
-    point_radius: radius of each point
+    <dl>
+    <dt>'PointBox'[{$x$, $y$}]
+    <dd> a box construction representing a point in a Graphic.
+    <dt>'PointBox'[{$x$, $y$, $z$}]
+    <dd> represents a point in a Graphic3D.
+    <dt>'PointBox'[{$p_1$, $p_2$,...}]
+    <dd> represents a set of points.
+    </dl>
+    ## Boxing methods for a list of Point.
+    ##
+    ## object attributes:
+    ## edge_color: _ColorObject
+    ## point_radius: radius of each point
     """
 
     def init(self, graphics, style, item=None):
@@ -1100,7 +1138,9 @@ class PointBox(_Polyline):
         self.edge_color, self.face_color = style.get_style(
             _ColorObject, face_element=True
         )
-
+        self.edge_opacity, self.face_opacity = style.get_style(
+            Opacity, face_element=True
+        )
         # Handle PointSize in a hacky way for now.
         point_size, _ = style.get_style(PointSize, face_element=False)
         if point_size is None:
@@ -1113,6 +1153,7 @@ class PointBox(_Polyline):
 
         if item is not None:
             if len(item.elements) != 1:
+                print("item:", item)
                 raise BoxConstructError
             points = item.elements[0]
             if points.has_form("List", None) and len(points.elements) != 0:
@@ -1145,6 +1186,9 @@ class PolygonBox(_Polyline):
         super(PolygonBox, self).init(graphics, item, style)
         self.edge_color, self.face_color = style.get_style(
             _ColorObject, face_element=True
+        )
+        self.edge_opacity, self.face_opacity = style.get_style(
+            Opacity, face_element=True
         )
         if item is not None:
             if len(item.elements) not in (1, 2):
@@ -1188,13 +1232,16 @@ class PolygonBox(_Polyline):
             raise BoxConstructError
 
 
-class RectangleBox(_GraphicsElement):
+class RectangleBox(_GraphicsElementBox):
     def init(self, graphics, style, item):
         super(RectangleBox, self).init(graphics, item, style)
         if len(item.elements) not in (1, 2):
             raise BoxConstructError
         self.edge_color, self.face_color = style.get_style(
             _ColorObject, face_element=True
+        )
+        self.edge_opacity, self.face_opacity = style.get_style(
+            Opacity, face_element=True
         )
         self.p1 = Coords(graphics, item.elements[0])
         if len(item.elements) == 1:

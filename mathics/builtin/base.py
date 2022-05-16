@@ -759,6 +759,27 @@ class BoxConstruct(InstanceableBuiltin):
             instance._elements = tuple(elements)
         return instance
 
+    @property
+    def is_literal(self) -> bool:
+        """
+        True if the value can't change, i.e. a value is set and it does not
+        depend on definition bindings. That is why, in contrast to
+        `is_uncertain_final_definitions()` we don't need a `definitions`
+        parameter.
+
+        Think about: We will say that a BoxConstruct can't change.
+        """
+        return True
+
+    @property
+    def elements(self):
+        return self._elements
+
+    @elements.setter
+    def elements(self, value):
+        self._elements = value
+        return self._elements
+
     def tex_block(self, tex, only_subsup=False):
         if len(tex) == 1:
             return tex
