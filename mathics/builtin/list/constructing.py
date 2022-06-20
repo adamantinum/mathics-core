@@ -10,23 +10,23 @@ from itertools import permutations
 
 
 from mathics.builtin.base import Builtin, Pattern
-
 from mathics.builtin.lists import (
     _IterationFunction,
     get_tuples,
 )
-
+from mathics.core.atoms import Integer, Symbol
+from mathics.core.attributes import hold_first, listable, protected
 from mathics.core.convert import from_sympy
-
+from mathics.core.element import ElementsProperties
 from mathics.core.expression import (
     Expression,
-    identity_fn,
+    to_expression,
     structure,
 )
-from mathics.core.atoms import Integer
-from mathics.core.symbols import Atom, SymbolList
+from mathics.core.list import ListExpression
+from mathics.core.symbols import Atom
 
-from mathics.core.attributes import hold_first, listable, protected
+SymbolNormal = Symbol("Normal")
 
 
 class Array(Builtin):
@@ -111,7 +111,7 @@ class Array(Builtin):
                     level.append(rec(rest_dims[1:], current + [index]))
                 return Expression(head, *level)
             else:
-                return Expression(f, *current, element_conversion_fn=Integer)
+                return to_expression(f, *current, elements_conversion_fn=Integer)
 
         return rec(dims, [])
 
@@ -152,7 +152,7 @@ class Normal(Builtin):
             return
         return Expression(
             expr.get_head(),
-            *[Expression("Normal", element) for element in expr.elements],
+            *[Expression(SymbolNormal, element) for element in expr.elements],
         )
 
 
@@ -186,6 +186,16 @@ class Range(Builtin):
     def apply(self, imin, imax, di, evaluation):
         "Range[imin_?RealNumberQ, imax_?RealNumberQ, di_?RealNumberQ]"
 
+        if (
+            isinstance(imin, Integer)
+            and isinstance(imax, Integer)
+            and isinstance(di, Integer)
+        ):
+            result = [Integer(i) for i in range(imin.value, imax.value + 1, di.value)]
+            # TODO: add ElementProperties in Expression interface refactor branch:
+            #   fully_evaluated, flat, are True and is_ordered = di.value >= 0
+            return ListExpression(*result)
+
         imin = imin.to_sympy()
         imax = imax.to_sympy()
         di = di.to_sympy()
@@ -195,7 +205,7 @@ class Range(Builtin):
             evaluation.check_stopped()
             result.append(from_sympy(index))
             index += di
-        return Expression(SymbolList, *result, element_conversion_fn=identity_fn)
+        return ListExpression(*result)
 
 
 class Permutations(Builtin):
@@ -239,12 +249,8 @@ class Permutations(Builtin):
 
     def apply(self, li, evaluation):
         "Permutations[li_List]"
-        return Expression(
-            SymbolList,
-            *[
-                Expression(SymbolList, *p)
-                for p in permutations(li.elements, len(li.elements))
-            ],
+        return ListExpression(
+            *[ListExpression(*p) for p in permutations(li.elements, len(li.elements))],
         )
 
     def apply_n(self, li, n, evaluation):
@@ -350,11 +356,13 @@ class Reap(Builtin):
             result = expr.evaluate(evaluation)
             items = []
             for pattern, tags in sown:
-                leaves = []
+                list_of_elements = []
                 for tag, elements in tags:
-                    leaves.append(Expression(f, tag, Expression(SymbolList, *elements)))
-                items.append(Expression(SymbolList, *leaves))
-            return Expression(SymbolList, result, Expression(SymbolList, *items))
+                    list_of_elements.append(
+                        Expression(f, tag, ListExpression(*elements))
+                    )
+                items.append(ListExpression(*list_of_elements))
+            return ListExpression(result, ListExpression(*items))
         finally:
             evaluation.remove_listener("sow", listener)
 
@@ -436,8 +444,11 @@ class Table(_IterationFunction):
 
     summary_text = "make a table of values of an expression"
 
-    def get_result(self, items):
-        return Expression(SymbolList, *items)
+    def get_result(self, elements) -> ListExpression:
+        return ListExpression(
+            *elements,
+            elements_properties=ElementsProperties(elements_fully_evaluated=True),
+        )
 
 
 class Tuples(Builtin):
@@ -491,8 +502,8 @@ class Tuples(Builtin):
                     for rest in iterate(n_rest - 1):
                         yield [item] + rest
 
-        return Expression(
-            SymbolList, *(Expression(expr.head, *elements) for elements in iterate(n))
+        return ListExpression(
+            *(Expression(expr.head, *elements) for elements in iterate(n))
         )
 
     def apply_lists(self, exprs, evaluation):
@@ -507,7 +518,6 @@ class Tuples(Builtin):
                 return
             items.append(expr.elements)
 
-        return Expression(
-            SymbolList,
-            *(Expression(SymbolList, *elements) for elements in get_tuples(items)),
+        return ListExpression(
+            *(ListExpression(*elements) for elements in get_tuples(items)),
         )

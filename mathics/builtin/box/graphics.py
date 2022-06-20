@@ -36,21 +36,21 @@ from mathics.builtin.graphics import (
     coords,
 )
 
-from mathics.core.formatter import lookup_method
-
-from mathics.format.asy_fns import asy_color, asy_number
-
-from mathics.core.expression import Expression
-from mathics.core.symbols import Symbol
 from mathics.core.atoms import (
     Integer,
     Real,
     String,
 )
-from mathics.core.symbols import SymbolList
-
 from mathics.core.attributes import hold_all, protected, read_protected
+from mathics.core.expression import Expression
+from mathics.core.formatter import lookup_method
+from mathics.core.list import ListExpression
+from mathics.core.symbols import Symbol, SymbolTrue
 
+from mathics.format.asy_fns import asy_color, asy_number
+
+SymbolRegularPolygonBox = Symbol("RegularPolygonBox")
+SymbolStandardForm = Symbol("StandardForm")
 
 # Note: has to come before _ArcBox
 class _RoundBox(_GraphicsElementBox):
@@ -115,7 +115,7 @@ class _ArcBox(_RoundBox):
                 else:
                     self.arc = (start_angle, end_angle)
 
-            item = Expression(item.get_head_name(), *item.elements[:2])
+            item = Expression(Symbol(item.get_head_name()), *item.elements[:2])
         else:
             self.arc = None
         super(_ArcBox, self).init(graphics, style, item)
@@ -408,9 +408,6 @@ class GraphicsBox(BoxConstruct):
         instance.evaluation = kwargs.get("evaluation", None)
         instance.elements = elements
         return instance
-
-    def to_expression(self):
-        return self
 
     @property
     def elements(self):
@@ -809,10 +806,10 @@ clip(%s);
 
     def create_axes(self, elements, graphics_options, xmin, xmax, ymin, ymax):
         axes = graphics_options.get("System`Axes")
-        if axes.is_true():
+        if axes is SymbolTrue:
             axes = (True, True)
         elif axes.has_form("List", 2):
-            axes = (axes.elements[0].is_true(), axes.elements[1].is_true())
+            axes = (axes.elements[0] is SymbolTrue, axes.elements[1] is SymbolTrue)
         else:
             axes = (False, False)
         ticks_style = graphics_options.get("System`TicksStyle")
@@ -1084,6 +1081,11 @@ class InsetBox(_GraphicsElementBox):
             self.content = content
             self.pos = pos
             self.opos = opos
+
+        if isinstance(self.content, String):
+            self.content = self.content.atom_to_boxes(
+                SymbolStandardForm, evaluation=self.graphics.evaluation
+            )
         self.content_text = self.content.boxes_to_text(
             evaluation=self.graphics.evaluation
         )
@@ -1158,7 +1160,7 @@ class PointBox(_Polyline):
             points = item.elements[0]
             if points.has_form("List", None) and len(points.elements) != 0:
                 if all(not leaf.has_form("List", None) for leaf in points.elements):
-                    points = Expression(SymbolList, points)
+                    points = ListExpression(points)
             self.do_init(graphics, points)
         else:
             raise BoxConstructError
@@ -1212,7 +1214,7 @@ class PolygonBox(_Polyline):
             self.vertex_colors = [[black] * len(line) for line in self.lines]
             colors = value.elements
             if not self.multi_parts:
-                colors = [Expression(SymbolList, *colors)]
+                colors = [ListExpression(*colors)]
             for line_index, line in enumerate(self.lines):
                 if line_index >= len(colors):
                     break
@@ -1305,12 +1307,10 @@ class RegularPolygonBox(PolygonBox):
             def vertices():
                 for i in range(n):
                     phi = phi0 + pi2 * i / float(n)
-                    yield Expression(
-                        "List", Real(x + r * cos(phi)), Real(y + r * sin(phi))
-                    )
+                    yield ListExpression(Real(x + r * cos(phi)), Real(y + r * sin(phi)))
 
             new_item = Expression(
-                "RegularPolygonBox", Expression(SymbolList, *list(vertices()))
+                SymbolRegularPolygonBox, ListExpression(*list(vertices()))
             )
         else:
             raise BoxConstructError

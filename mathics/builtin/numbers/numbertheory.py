@@ -4,24 +4,19 @@
 Number theoretic functions
 """
 
+import mpmath
 import sympy
 
 
-from mathics.core.evaluators import apply_N
 from mathics.builtin.base import Builtin, SympyFunction
-from mathics.core.expression import Expression
-from mathics.core.symbols import Symbol
 from mathics.core.atoms import (
     Integer,
     Integer0,
+    Integer10,
     Rational,
     SymbolDivide,
-    SymbolList,
     from_python,
 )
-from mathics.core.convert import from_sympy, SympyPrime
-import mpmath
-
 from mathics.core.attributes import (
     listable,
     numeric_function,
@@ -29,6 +24,21 @@ from mathics.core.attributes import (
     protected,
     read_protected,
 )
+from mathics.core.convert import from_sympy, SympyPrime
+from mathics.core.evaluators import apply_N
+from mathics.core.expression import Expression
+from mathics.core.list import ListExpression, to_mathics_list
+from mathics.core.symbols import Symbol
+from mathics.core.systemsymbols import (
+    SymbolCeiling,
+    SymbolComplex,
+    SymbolFloor,
+    SymbolIm,
+    SymbolRe,
+)
+
+SymbolFractionalPart = Symbol("FractionalPart")
+SymbolMantissaExponent = Symbol("MantissaExponent")
 
 
 class ContinuedFraction(SympyFunction):
@@ -36,6 +46,7 @@ class ContinuedFraction(SympyFunction):
     <dl>
       <dt>'ContinuedFraction[$x$, $n$]'
       <dd>generate the first $n$ terms in the continued fraction reprentation of $x$.
+
       <dt>'ContinuedFraction[$x$]'
       <dd>the complete continued fraction representation for a rational or quadradic irrational number.
     </dl>
@@ -50,10 +61,9 @@ class ContinuedFraction(SympyFunction):
      = {8, {2, 1, 2, 1, 2, 16}}
     """
 
+    attributes = listable | numeric_function | protected
     summary_text = "continued fraction expansion"
     sympy_name = "continued_fraction"
-
-    attributes = listable | numeric_function | protected
 
     def apply_1(self, x, evaluation):
         "%(name)s[x_]"
@@ -99,9 +109,7 @@ class Divisors(Builtin):
         "Divisors[n_Integer]"
         if n == Integer0:
             return None
-        return Expression(
-            SymbolList, *sympy.divisors(n.to_sympy()), element_conversion_fn=from_sympy
-        )
+        return to_mathics_list(*sympy.divisors(n.value), elements_conversion_fn=Integer)
 
 
 # FIXME: Previously this used gmpy's gcdext. sympy's gcdex is not as powerful
@@ -139,8 +147,8 @@ class Divisors(Builtin):
 #            new_result, c1, c2 = sympy.gcdex(result, value)
 #            result = new_result
 #            coeff = [c * c1 for c in coeff] + [c2]
-#            return Expression('List', Integer(result), Expression(
-#                'List', *(Integer(c) for c in coeff)))
+#            return ListExpression(Integer(result), ListExpression(
+#                *(Integer(c) for c in coeff)))
 
 
 class EulerPhi(SympyFunction):
@@ -203,8 +211,8 @@ class FactorInteger(Builtin):
      = {{2, 1}, {3, 1}, {5, 1}, {67, 1}, {2011, -1}}
     """
 
-    summary_text = "list of prime factors and exponents"
     attributes = listable | protected
+    summary_text = "list of prime factors and exponents"
 
     # TODO: GausianIntegers option
     # e.g. FactorInteger[5, GaussianIntegers -> True]
@@ -215,9 +223,8 @@ class FactorInteger(Builtin):
         if isinstance(n, Integer):
             factors = sympy.factorint(n.value)
             factors = sorted(factors.items())
-            return Expression(
-                SymbolList,
-                *(Expression(SymbolList, factor, exp) for factor, exp in factors)
+            return ListExpression(
+                *(to_mathics_list(factor, exp) for factor, exp in factors)
             )
 
         elif isinstance(n, Rational):
@@ -227,9 +234,8 @@ class FactorInteger(Builtin):
             for factor, exp in factors_denom.items():
                 factors[factor] = factors.get(factor, 0) - exp
             factors = sorted(factors.items())
-            return Expression(
-                SymbolList,
-                *(Expression(SymbolList, factor, exp) for factor, exp in factors)
+            return ListExpression(
+                *(to_mathics_list(factor, exp) for factor, exp in factors)
             )
         else:
             return evaluation.message("FactorInteger", "exact", n)
@@ -240,14 +246,14 @@ def _fractional_part(self, n, expr, evaluation):
     if n_sympy.is_constant():
         if n_sympy >= 0:
             positive_integer_part = (
-                Expression("Floor", n).evaluate(evaluation).to_python()
+                Expression(SymbolFloor, n).evaluate(evaluation).to_python()
             )
-            result = n - positive_integer_part
+            result = n - Integer(positive_integer_part)
         else:
             negative_integer_part = (
-                Expression("Ceiling", n).evaluate(evaluation).to_python()
+                Expression(SymbolCeiling, n).evaluate(evaluation).to_python()
             )
-            result = n - negative_integer_part
+            result = n - Integer(negative_integer_part)
     else:
         return expr
 
@@ -283,19 +289,19 @@ class FractionalPart(Builtin):
      = -8769956796 + Pi ^ 20
     """
 
-    summary_text = "fractional part of a number"
     attributes = listable | numeric_function | read_protected | protected
+    summary_text = "fractional part of a number"
 
     def apply(self, n, evaluation):
         "FractionalPart[n_]"
-        expr = Expression("FractionalPart", n)
+        expr = Expression(SymbolFractionalPart, n)
         return _fractional_part(self.__class__.__name__, n, expr, evaluation)
 
     def apply_2(self, n, evaluation):
         "FractionalPart[n_Complex]"
-        expr = Expression("FractionalPart", n)
-        n_real = Expression("Re", n).evaluate(evaluation)
-        n_image = Expression("Im", n).evaluate(evaluation)
+        expr = Expression(SymbolFractionalPart, n)
+        n_real = Expression(SymbolRe, n).evaluate(evaluation)
+        n_image = Expression(SymbolIm, n).evaluate(evaluation)
 
         real_fractional_part = _fractional_part(
             self.__class__.__name__, n_real, expr, evaluation
@@ -303,7 +309,7 @@ class FractionalPart(Builtin):
         image_fractional_part = _fractional_part(
             self.__class__.__name__, n_image, expr, evaluation
         )
-        return Expression("Complex", real_fractional_part, image_fractional_part)
+        return Expression(SymbolComplex, real_fractional_part, image_fractional_part)
 
 
 class FromContinuedFraction(SympyFunction):
@@ -395,25 +401,23 @@ class MantissaExponent(Builtin):
      = {0, 0}
     """
 
-    summary_text = "decomposes numbers as mantissa and exponent"
     attributes = listable | protected
-
-    rules = {
-        "MantissaExponent[0]": "{0, 0}",
-        "MantissaExponent[0, n_]": "{0, 0}",
-    }
-
     messages = {
         "realx": "The value `1` is not a real number",
         "rbase": "Base `1` is not a real number greater than 1.",
     }
+    rules = {
+        "MantissaExponent[0]": "{0, 0}",
+        "MantissaExponent[0, n_]": "{0, 0}",
+    }
+    summary_text = "decomposes numbers as mantissa and exponent"
 
     def apply(self, n, b, evaluation):
         "MantissaExponent[n_, b_]"
         # Handle Input with special cases such as PI and E
         n_sympy, b_sympy = n.to_sympy(), b.to_sympy()
 
-        expr = Expression("MantissaExponent", n, b)
+        expr = Expression(SymbolMantissaExponent, n, b)
 
         if isinstance(n.to_python(), complex):
             evaluation.message("MantissaExponent", "realx", n)
@@ -437,14 +441,13 @@ class MantissaExponent(Builtin):
 
         base_exp = int(mpmath.log(py_n, py_b))
 
-        exp = (base_exp + 1) if base_exp >= 0 else base_exp
-
-        return Expression(SymbolList, Expression(SymbolDivide, n, b ** exp), exp)
+        exp = Integer((base_exp + 1) if base_exp >= 0 else base_exp)
+        return ListExpression(Expression(SymbolDivide, n, b**exp), exp)
 
     def apply_2(self, n, evaluation):
         "MantissaExponent[n_]"
         n_sympy = n.to_sympy()
-        expr = Expression("MantissaExponent", n)
+        expr = Expression(SymbolMantissaExponent, n)
 
         if isinstance(n.to_python(), complex):
             evaluation.message("MantissaExponent", "realx", n)
@@ -457,18 +460,19 @@ class MantissaExponent(Builtin):
             return expr
 
         base_exp = int(mpmath.log10(py_n))
-        exp = (base_exp + 1) if base_exp >= 0 else base_exp
+        exp = Integer((base_exp + 1) if base_exp >= 0 else base_exp)
 
-        return Expression(SymbolList, Expression(SymbolDivide, n, (10 ** exp)), exp)
+        return ListExpression(Expression(SymbolDivide, n, Integer10**exp), exp)
 
 
 class NextPrime(Builtin):
     """
     <dl>
-    <dt>'NextPrime[$n$]'
-        <dd>gives the next prime after $n$.
-    <dt>'NextPrime[$n$,$k$]'
-        <dd>gives the $k$th  prime after $n$.
+      <dt>'NextPrime[$n$]'
+      <dd>gives the next prime after $n$.
+
+      <dt>'NextPrime[$n$,$k$]'
+      <dd>gives the $k$th  prime after $n$.
     </dl>
 
     >> NextPrime[10000]
@@ -490,10 +494,10 @@ class NextPrime(Builtin):
      = NextPrime[5, 10.5]
     """
 
-    summary_text = "closest, smallest prime number"
     rules = {
         "NextPrime[n_]": "NextPrime[n, 1]",
     }
+    summary_text = "closest, smallest prime number"
 
     def apply(self, n, k, evaluation):
         "NextPrime[n_?NumberQ, k_Integer]"
@@ -526,8 +530,8 @@ class PartitionsP(SympyFunction):
      = {0, 0, 1, 1, 2, 3, 5, 7, 11, 15, 22, 30, 42, 56, 77}
     """
 
-    summary_text = "number of unrestricted partitions"
     attributes = listable | numeric_function | orderless | protected
+    summary_text = "number of unrestricted partitions"
     sympy_name = "npartitions"
 
     def apply(self, n, evaluation):
@@ -564,8 +568,8 @@ class Prime(SympyFunction):
      = {Prime[0], 2, Prime[1.2], 5}
     """
 
-    summary_text = "n-esim prime number"
     attributes = listable | numeric_function | protected
+    summary_text = "n-esim prime number"
 
     def apply(self, n, evaluation):
         "Prime[n_]"
@@ -573,7 +577,7 @@ class Prime(SympyFunction):
 
     def to_sympy(self, expr, **kwargs):
         if expr.has_form("Prime", 1):
-            return SympyPrime(expr.leaves[0].to_sympy(**kwargs))
+            return SympyPrime(expr.elements[0].to_sympy(**kwargs))
 
 
 class PrimePi(SympyFunction):
@@ -600,11 +604,10 @@ class PrimePi(SympyFunction):
      = 1
     """
 
+    attributes = listable | numeric_function | protected
+    mpmath_name = "primepi"
     summary_text = "amount of prime numbers less than or equal"
     sympy_name = "ntheory.primepi"
-    mpmath_name = "primepi"
-
-    attributes = listable | numeric_function | protected
 
     # TODO: Traditional Form
 
@@ -637,11 +640,11 @@ class PrimePowerQ(Builtin):
      = False
     """
 
+    attributes = listable | protected | read_protected
     rules = {
         "PrimePowerQ[1]": "False",
     }
     summary_text = "test if a number is a power of a prime number"
-    attributes = listable | protected | read_protected
 
     # TODO: GaussianIntegers option
     """
@@ -705,7 +708,6 @@ class RandomPrime(Builtin):
      = {{2, 2}, {2, 2}, {2, 2}}
     """
 
-    summary_text = "picks a random prime in an interval"
     messages = {
         "posdim": (
             "The dimensions parameter `1` is expected to be a positive "
@@ -730,6 +732,7 @@ class RandomPrime(Builtin):
             "ConstantArray[RandomPrime[{1, imax}, 1], n]"
         ),
     }
+    summary_text = "picks a random prime in an interval"
 
     # TODO: Use random state as in other randomised methods within mathics
 
@@ -747,11 +750,11 @@ class RandomPrime(Builtin):
 
         imin, imax = min(py_int), max(py_int)
         if imin <= 0 or not isinstance(imin, int):
-            evaluation.message("RandomPrime", "posint", interval.leaves[0])
+            evaluation.message("RandomPrime", "posint", interval.elements[0])
             return
 
         if imax <= 0 or not isinstance(imax, int):
-            evaluation.message("RandomPrime", "posint", interval.leaves[1])
+            evaluation.message("RandomPrime", "posint", interval.elements[1])
             return
 
         try:
