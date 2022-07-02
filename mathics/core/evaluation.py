@@ -14,7 +14,8 @@ from mathics_scanner import TranslateError
 
 from mathics import settings
 
-from mathics.core.atoms import from_python, Integer, String
+from mathics.core.atoms import Integer, String
+from mathics.core.convert.python import from_python
 from mathics.core.element import KeyComparable, ensure_context
 from mathics.core.interrupt import (
     AbortInterrupt,
@@ -299,7 +300,8 @@ class Evaluation:
         exception type of result like $Aborted, Overflow, Break, or Continue.
         If none of the above applies self.exc_result is Null
         """
-        from mathics.core.expression import Expression, to_expression
+        from mathics.core.convert.expression import to_expression
+        from mathics.core.expression import Expression
         from mathics.core.rules import Rule
 
         self.start_time = time.time()
@@ -532,7 +534,7 @@ class Evaluation:
         self.output.out(self.out[-1])
 
     def print_out(self, text) -> None:
-        from mathics.core.atoms import from_python
+        from mathics.core.convert.python import from_python
 
         if self.definitions.trace_evaluation:
             self.definitions.trace_evaluation = False

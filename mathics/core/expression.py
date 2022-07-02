@@ -6,11 +6,11 @@ import math
 import time
 
 import typing
-from typing import Any, Callable, Iterable, Optional, Tuple, Union
+from typing import Any, Callable, Iterable, Optional, Tuple
 from itertools import chain
 from bisect import bisect_left
 
-from mathics.core.atoms import from_python, Number, Integer, String
+from mathics.core.atoms import Integer, Number, String
 
 # FIXME: adjust mathics.core.attributes to uppercase attribute names
 from mathics.core.attributes import (
@@ -25,7 +25,8 @@ from mathics.core.attributes import (
     orderless as ORDERLESS,
     sequence_hold as SEQUENCE_HOLD,
 )
-from mathics.core.convert import sympy_symbol_prefix, SympyExpression
+from mathics.core.convert.sympy import sympy_symbol_prefix, SympyExpression
+from mathics.core.convert.python import from_python
 from mathics.core.element import ensure_context, ElementsProperties
 from mathics.core.evaluation import Evaluation
 from mathics.core.interrupt import ReturnInterrupt
@@ -186,7 +187,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         - *elements - optional: the remaining elements
 
     Keyword Arguments:
-        - element_properties -- properties of the collection of elements
+        - elements_properties -- properties of the collection of elements
     """
 
     head: "Symbol"
@@ -194,31 +195,33 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
     _sequences: Any
 
     def __init__(
-        self, head, *elements, elements_properties: Optional[ElementsProperties] = None
+        self,
+        head: BaseElement,
+        *elements: Tuple[BaseElement],
+        elements_properties: Optional[ElementsProperties] = None
     ):
         self.options = None
         self.pattern_sequence = False
-        if isinstance(head, str):
-            # We should fix or convert to to_expression all nonSymbol uses.
-            head = Symbol(head)
+        # assert isinstance(head, BaseElement)
+        # assert isinstance(elements, tuple)
+        # assert all(isinstance(e, BaseElement) for e in elements)
 
         self._head = head
+        self._elements = elements
 
-        # This is useful for finding potential improprer calls
-        # for element in elements:
-        #     if not isinstance(element, BaseElement):
-        #          from trepan.api import debug; debug()
-        #     assert isinstance(element, BaseElement)
-
-        # Note: After we make a pass over all Expression() calls, these lines will get removed
-        # and replaced with the two commented-out lines below them:
-
-        self._elements, self.elements_properties = convert_expression_elements(
-            elements, from_python
-        )
-        assert isinstance(self._elements, tuple)
-        # self._elements = elements
+        # comment mmatera: I found that in certain cases, the elements_properties
+        # passed as the parameter does not matches with those we generate with build:elements_properties.
+        # This is the cause of the error in the test_series.py pytest.
+        # Once it be fixed, we can uncomment the following code and remove the previous line
+        # assert (elements_properties is None or
+        #        self.elements_properties == elements_properties), ("element properties do not match",
+        #                                                           self, (self.elements_properties,
+        #                                                                  elements_properties)
+        #                                                           )
+        # After things are clean we should not run _build_elements_properties. This is done
+        # when needed in self.rewrite_apply_eval()
         # self.elements_properties = elements_properties
+        self._build_elements_properties()
 
         self._sequences = None
         self._cache = None
@@ -1972,29 +1975,3 @@ def convert_expression_elements(
 
 def string_list(head, elements, evaluation):
     return atom_list_constructor(evaluation, head, "String")(elements)
-
-
-def to_expression(
-    head: Union[str, Symbol],
-    *elements: Any,
-    elements_conversion_fn: Callable = from_python
-) -> Expression:
-    """
-    This is an expression constructor that can be used when the Head and elements are not Mathics
-    objects. For example to_expression("Plus", 1, 2, 3)
-    """
-    if isinstance(head, str):
-        head = Symbol(head)
-
-    # # The below code should disappear after we have gone over the entire code base
-    # # to replace all calls of the form ListExpression(...) or
-    # # to_expression("List", ...)
-    # if head is SymbolList:
-    #    from mathics.core.list import to_mathics_list
-    #    return to_mathics_list(elements)
-
-    elements_tuple, elements_properties = convert_expression_elements(
-        elements, elements_conversion_fn
-    )
-
-    return Expression(head, *elements_tuple, elements_properties=elements_properties)

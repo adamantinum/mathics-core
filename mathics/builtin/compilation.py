@@ -17,12 +17,12 @@ from mathics.core.atoms import (
     String,
 )
 from mathics.core.attributes import hold_all, protected
-from mathics.core.atoms import from_python
+from mathics.core.convert.expression import to_mathics_list
+from mathics.core.convert.python import from_python
 from mathics.core.element import ImmutableValueMixin
 from mathics.core.evaluation import Evaluation
 from mathics.core.evaluators import apply_N
 from mathics.core.expression import Expression, SymbolCompiledFunction
-from mathics.core.list import to_mathics_list
 from mathics.core.symbols import Atom, Symbol, SymbolFalse, SymbolTrue
 from mathics.core.systemsymbols import (
     SymbolBlank,
@@ -260,9 +260,9 @@ class CompiledFunction(Builtin):
         for arg in argseq:
             if isinstance(arg, Integer):
                 py_args.append(arg.get_int_value())
-            elif arg.sameQ(Symbol("True")):
+            elif arg.sameQ(SymbolTrue):
                 py_args.append(True)
-            elif arg.sameQ(Symbol("False")):
+            elif arg.sameQ(SymbolFalse):
                 py_args.append(False)
             else:
                 py_args.append(arg.round_to_float(evaluation))

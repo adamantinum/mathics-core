@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-from mathics.core.expression import Expression, convert_expression_elements
 
-from typing import Any, Callable, Optional, Tuple
+from typing import Optional, Tuple
 
-from mathics.core.atoms import from_python
 from mathics.core.element import ElementsProperties
+from mathics.core.expression import Expression
 from mathics.core.symbols import EvalMixin, SymbolList
 
 
@@ -50,9 +49,9 @@ class ListExpression(Expression):
         # here...
         self._format_cache = None
 
-    # # Add this when it is safe to do.
-    # def __repr__(self) -> str:
-    #     return "<ListExpression: %s>" % self
+    # Add this when it is safe to do.
+    def __repr__(self) -> str:
+        return "<ListExpression: %s>" % self
 
     # @timeit
     def evaluate_elements(self, evaluation):
@@ -116,22 +115,20 @@ class ListExpression(Expression):
 
         return self, False
 
+    def shallow_copy(self) -> "ListExpression":
+        """
+        For an Expression this does something with its cache.
+        Here this does not need that complication.
+        """
+        return ListExpression(
+            *self._elements, elements_properties=self.elements_properties
+        )
 
-def to_mathics_list(
-    *elements: Any, elements_conversion_fn: Callable = from_python, is_literal=False
-) -> Expression:
-    """
-    This is an expression constructor for list that can be used when the elements are not Mathics
-    objects. For example:
-       to_mathics_list(1, 2, 3)
-       to_mathics_list(1, 2, 3, elements_conversion_fn=Integer, is_literal=True)
-    """
-    elements_tuple, elements_properties = convert_expression_elements(
-        elements, elements_conversion_fn
-    )
-    list_expression = ListExpression(
-        *elements_tuple, elements_properties=elements_properties
-    )
-    if is_literal:
-        list_expression.python_list = elements
-    return list_expression
+    def copy(self, reevaluate=False) -> "Expression":
+        expr = ListExpression(self._head.copy(reevaluate))
+        expr._elements = tuple(element.copy(reevaluate) for element in self._elements)
+        expr.options = self.options
+        expr.original = self
+        expr._sequences = self._sequences
+        expr._format_cache = self._format_cache
+        return expr

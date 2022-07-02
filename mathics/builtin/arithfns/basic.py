@@ -18,9 +18,6 @@ from mathics.builtin.base import (
     PrefixOperator,
     SympyFunction,
 )
-
-from mathics.core.element import BaseElement
-from mathics.core.expression import ElementsProperties, Expression, to_expression
 from mathics.core.atoms import (
     Complex,
     Integer,
@@ -34,8 +31,10 @@ from mathics.core.atoms import (
     Rational,
     Real,
     String,
-    from_mpmath,
 )
+from mathics.core.convert.expression import to_expression
+from mathics.core.convert.mpmath import from_mpmath
+from mathics.core.expression import ElementsProperties, Expression
 from mathics.core.list import ListExpression
 from mathics.core.symbols import (
     Symbol,
@@ -53,13 +52,14 @@ from mathics.core.systemsymbols import (
     SymbolIndeterminate,
     SymbolInfinity,
     SymbolInfix,
+    SymbolLeft,
     SymbolMinus,
     SymbolPattern,
     SymbolSequence,
 )
 from mathics.core.number import min_prec, dps
 
-from mathics.core.convert import from_sympy
+from mathics.core.convert.sympy import from_sympy
 
 from mathics.core.attributes import (
     flat,
@@ -70,9 +70,6 @@ from mathics.core.attributes import (
     protected,
     read_protected,
 )
-
-
-SymbolLeft = Symbol("Left")
 
 
 class CubeRoot(Builtin):
@@ -401,11 +398,11 @@ class Plus(BinaryOperator, SympyFunction):
             else:
                 count = rest = None
                 if item.has_form("Times", None):
-                    for leaf in item.elements:
-                        if isinstance(leaf, Number):
-                            count = leaf.to_sympy()
+                    for element in item.elements:
+                        if isinstance(element, Number):
+                            count = element.to_sympy()
                             rest = item.get_mutable_elements()
-                            rest.remove(leaf)
+                            rest.remove(element)
                             if len(rest) == 1:
                                 rest = rest[0]
                             else:

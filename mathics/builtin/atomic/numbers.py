@@ -29,15 +29,16 @@ from mathics.core.atoms import (
     Rational,
     Real,
     SymbolDivide,
-    from_python,
 )
 from mathics.core.attributes import (
     listable,
     protected,
 )
+from mathics.core.convert.expression import to_mathics_list
+from mathics.core.convert.python import from_python
 from mathics.core.evaluators import apply_N
 from mathics.core.expression import Expression
-from mathics.core.list import ListExpression, to_mathics_list
+from mathics.core.list import ListExpression
 from mathics.core.number import (
     dps,
     convert_int_to_digit_list,
@@ -51,15 +52,16 @@ from mathics.core.symbols import (
 )
 from mathics.core.systemsymbols import (
     SymbolIndeterminate,
+    SymbolInfinity,
     SymbolLog,
     SymbolN,
     SymbolPrecision,
+    SymbolRealDigits,
     SymbolRound,
 )
 
 SymbolIntegerDigits = Symbol("IntegerDigits")
 SymbolIntegerExponent = Symbol("IntegerExponent")
-SymbolRealDigits = Symbol("RealDigits")
 
 
 @lru_cache(maxsize=1024)
@@ -1019,7 +1021,7 @@ class Precision(Builtin):
         "Precision[z_]"
 
         if not z.is_inexact():
-            return Symbol("Infinity")
+            return SymbolInfinity
         elif z.to_sympy().is_zero:
             return Real(0)
         else:

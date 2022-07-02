@@ -12,9 +12,10 @@ import string
 from mathics.builtin.base import Builtin, SympyFunction
 from mathics.core.atoms import Integer, Integer0, String, SymbolPlus, SymbolTimes
 from mathics.core.attributes import listable, numeric_function, protected
-from mathics.core.convert import from_sympy
+from mathics.core.convert.sympy import from_sympy
+from mathics.core.convert.expression import to_mathics_list
 from mathics.core.expression import Expression
-from mathics.core.list import ListExpression, to_mathics_list
+from mathics.core.list import ListExpression
 
 
 class Floor(SympyFunction):
@@ -460,8 +461,10 @@ class FromDigits(Builtin):
         "FromDigits[l_, b_]"
         if l.get_head_name() == "System`List":
             value = Integer0
-            for leaf in l.leaves:
-                value = Expression(SymbolPlus, Expression(SymbolTimes, value, b), leaf)
+            for element in l.elements:
+                value = Expression(
+                    SymbolPlus, Expression(SymbolTimes, value, b), element
+                )
             return value
         elif isinstance(l, String):
             value = FromDigits._parse_string(l.get_string_value(), b)

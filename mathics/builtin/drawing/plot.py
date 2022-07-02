@@ -25,12 +25,13 @@ from mathics.core.atoms import (
     Integer,
     Integer0,
     Integer1,
-    from_python,
 )
 from mathics.core.attributes import hold_all, protected
+from mathics.core.convert.expression import to_expression, to_mathics_list
+from mathics.core.convert.python import from_python
 from mathics.core.evaluators import apply_N
-from mathics.core.expression import Expression, to_expression
-from mathics.core.list import ListExpression, to_mathics_list
+from mathics.core.expression import Expression
+from mathics.core.list import ListExpression
 from mathics.core.symbols import Symbol, SymbolList, SymbolN, SymbolPower, SymbolTrue
 from mathics.core.systemsymbols import (
     SymbolBlend,
@@ -120,7 +121,9 @@ class _GradientColorScheme:
     def color_data_function(self, name):
         colors = ListExpression(
             *[
-                Expression(SymbolRGBColor, *(MachineReal(c) for c in color))
+                to_expression(
+                    SymbolRGBColor, *color, elements_conversion_fn=MachineReal
+                )
                 for color in self.colors()
             ]
         )
@@ -1320,7 +1323,9 @@ class Histogram(Builtin):
                     )
 
                     last_x1 = 0
-                    style = Expression(SymbolRGBColor, *(MachineReal(c) for c in color))
+                    style = to_expression(
+                        SymbolRGBColor, *color, elements_conversion_fn=MachineReal
+                    )
 
                     for x0, x1, y in boxes():
                         yield Expression(

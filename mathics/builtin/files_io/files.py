@@ -19,8 +19,28 @@ from itertools import chain
 
 
 from mathics_scanner import TranslateError
-from mathics.core.parser import MathicsFileLineFeeder, parse
 from mathics.core import read
+from mathics.core.atoms import (
+    Complex,
+    Integer,
+    MachineReal,
+    Real,
+    String,
+)
+from mathics.core.convert.expression import to_expression, to_mathics_list
+from mathics.core.convert.mpmath import from_mpmath
+from mathics.core.convert.python import from_python
+from mathics.core.expression import BoxError, Expression
+from mathics.core.parser import MathicsFileLineFeeder, parse
+from mathics.core.symbols import Symbol, SymbolNull, SymbolTrue
+from mathics.core.systemsymbols import (
+    SymbolDirectedInfinity,
+    SymbolIndeterminate,
+    SymbolFailed,
+    SymbolHold,
+)
+
+from mathics.core.number import dps
 from mathics.core.read import (
     channel_to_stream,
     close_stream,
@@ -31,27 +51,6 @@ from mathics.core.read import (
     READ_TYPES,
     SymbolEndOfFile,
 )
-
-
-from mathics.core.expression import BoxError, Expression, to_expression
-from mathics.core.list import to_mathics_list
-from mathics.core.atoms import (
-    Complex,
-    Integer,
-    MachineReal,
-    Real,
-    String,
-    from_mpmath,
-    from_python,
-)
-from mathics.core.symbols import Symbol, SymbolNull, SymbolTrue
-from mathics.core.systemsymbols import (
-    SymbolDirectedInfinity,
-    SymbolIndeterminate,
-    SymbolFailed,
-)
-
-from mathics.core.number import dps
 from mathics.core.streams import (
     path_search,
     stream_manager,
@@ -61,6 +60,7 @@ from mathics.builtin.base import Builtin, Predefined, BinaryOperator, PrefixOper
 from mathics.builtin.base import MessageException
 
 from mathics.core.attributes import protected, read_protected
+from mathics.core.systemsymbols import SymbolComplex, SymbolReal
 
 INITIAL_DIR = os.getcwd()
 DIRECTORY_STACK = [INITIAL_DIR]
@@ -69,7 +69,6 @@ INPUT_VAR = ""
 
 TMP_DIR = tempfile.gettempdir()
 
-SymbolComplex = Symbol("Complex")
 SymbolInputStream = Symbol("InputStream")
 SymbolOutputStream = Symbol("OutputStream")
 SymbolPath = Symbol("$Path")
@@ -2110,7 +2109,7 @@ class Read(Builtin):
                         return SymbolFailed
                     elif isinstance(expr, BaseElement):
                         if typ is Symbol("HoldExpression"):
-                            expr = to_expression("Hold", expr)
+                            expr = Expression(SymbolHold, expr)
                         result.append(expr)
                     # else:
                     #  TODO: Supposedly we can't get here
@@ -2130,7 +2129,7 @@ class Read(Builtin):
                             return SymbolFailed
                     result.append(tmp)
 
-                elif typ is Symbol("Real"):
+                elif typ is SymbolReal:
                     tmp = next(read_real)
                     tmp = tmp.replace("*^", "E")
                     try:

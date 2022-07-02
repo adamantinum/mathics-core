@@ -1121,7 +1121,7 @@ class Optional(BinaryOperator, PatternObject):
     ):
         if expression.has_form("Sequence", 0):
             if self.default is None:
-                if head is None:  # head should be given by match_leaf!
+                if head is None:  # head should be given by match_element!
                     default = None
                 else:
                     name = head.get_name()
@@ -1527,7 +1527,7 @@ class Condition(BinaryOperator, PatternObject):
         self.test = expr.elements[1]
         # if (expr.elements[0].get_head_name() == "System`Condition" and
         #    len(expr.elements[0].elements) == 2):
-        #    self.test = Expression("And", self.test, expr.elements[0].elements[1])
+        #    self.test = Expression(SymbolAnd, self.test, expr.elements[0].elements[1])
         #    self.pattern = Pattern.create(expr.elements[0].elements[0])
         # else:
         self.pattern = Pattern.create(expr.elements[0])

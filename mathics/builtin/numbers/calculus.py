@@ -38,7 +38,6 @@ from mathics.core.atoms import (
     Number,
     Rational,
     Real,
-    from_python,
 )
 from mathics.core.attributes import (
     constant,
@@ -48,12 +47,13 @@ from mathics.core.attributes import (
     protected,
     read_protected,
 )
-from mathics.core.convert import sympy_symbol_prefix, SympyExpression, from_sympy
+from mathics.core.convert.expression import to_expression, to_mathics_list
+from mathics.core.convert.python import from_python
+from mathics.core.convert.sympy import sympy_symbol_prefix, SympyExpression, from_sympy
 from mathics.core.evaluation import Evaluation
 from mathics.core.evaluators import apply_N
-
-from mathics.core.expression import Expression, to_expression
-from mathics.core.list import ListExpression, to_mathics_list
+from mathics.core.expression import Expression
+from mathics.core.list import ListExpression
 from mathics.core.number import dps, machine_epsilon
 from mathics.core.rules import Pattern
 
@@ -1767,20 +1767,20 @@ class SeriesData(Builtin):
         # If the series is null, build a series with the remaining terms
         if all(Integer0.sameQ(element) for element in data.elements):
             if term.get_head() is SymbolSequence:
-                term = Expression(SymbolPlus, *(term.elements))
+                term = Expression(SymbolPlus, *term.elements)
             ret = build_series(
                 term,
                 x,
                 x0,
-                Integer(nummax.get_int_value() / nummax.get_int_value()),
+                nummax.value / nummax.value,
                 evaluation,
             )
             return ret
         series = (
             data,
-            nummin.get_int_value(),
-            nummax.get_int_value(),
-            den.get_int_value(),
+            nummin.value,
+            nummax.value,
+            den.value,
         )
         if term.get_head() is SymbolSequence:
             terms = term.elements
