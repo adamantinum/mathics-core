@@ -6,6 +6,10 @@ Mathematical Constants
 Numeric, Arithmetic, or Symbolic constants like Pi, E, or Infinity.
 """
 
+# This tells documentation how to sort this module
+sort_order = "mathics.builtin.mathematical-constants"
+
+
 import math
 import mpmath
 import numpy
@@ -13,18 +17,19 @@ import sympy
 
 
 from mathics.builtin.base import Builtin, Predefined, SympyObject
+
+from mathics.core.atoms import (
+    MachineReal,
+    PrecisionReal,
+)
+from mathics.core.attributes import constant, protected, read_protected
+from mathics.core.number import get_precision, PrecisionValueError, machine_precision
 from mathics.core.symbols import (
     Atom,
     Symbol,
     strip_context,
 )
-from mathics.core.atoms import (
-    MachineReal,
-    PrecisionReal,
-)
-from mathics.core.number import get_precision, PrecisionValueError, machine_precision
-
-from mathics.core.attributes import constant, protected, read_protected
+from mathics.core.systemsymbols import SymbolIndeterminate
 
 
 def mp_constant(fn: str, d=None) -> mpmath.mpf:
@@ -71,7 +76,7 @@ def sympy_constant(fn, d=None):
 class _Constant_Common(Predefined):
     is_numeric = True
     attributes = constant | protected | read_protected
-    nargs = 0
+    nargs = {0}
     options = {"Method": "Automatic"}
 
     def apply_N(self, precision, evaluation):
@@ -407,6 +412,10 @@ class Indeterminate(_SympyConstant):
 
     summary_text = "indeterminate value"
     sympy_name = "nan"
+
+    def apply_N(self, precision, evaluation, options={}):
+        "N[%(name)s, precision_?NumericQ, OptionsPattern[%(name)s]]"
+        return SymbolIndeterminate
 
 
 class Infinity(_SympyConstant):

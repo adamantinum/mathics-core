@@ -124,13 +124,13 @@ class DSolve(Builtin):
         if isinstance(x, Symbol):
             syms = [x]
         elif x.has_form("List", 1, None):
-            syms = sorted(x.get_elements())
+            syms = sorted(x.elements)
         else:
             return evaluation.message("DSolve", "dsvar", x)
 
         # Fixes pathalogical DSolve[y''[x] == y[x], y, x]
         try:
-            y.leaves
+            y.elements
             function_form = None
             func = y
         except AttributeError:
@@ -141,7 +141,7 @@ class DSolve(Builtin):
             evaluation.message("DSolve", "dsfun", y)
             return
 
-        if set(func.leaves) != set(syms):
+        if set(func.elements) != set(syms):
             evaluation.message("DSolve", "deqx")
             return
 
@@ -197,7 +197,7 @@ class DSolve(Builtin):
                             Expression(
                                 SymbolFunction,
                                 function_form,
-                                *from_sympy(soln).leaves[1:]
+                                *from_sympy(soln).elements[1:]
                             ),
                         ),
                     )

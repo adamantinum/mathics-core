@@ -6,7 +6,13 @@ import random
 import io
 import math
 
+
+from test.helper import session
+
+
 from mathics.builtin.compile import has_llvmlite
+from mathics.builtin.compilation import CompiledCode
+
 from mathics.core.atoms import (
     Integer,
     Integer1,
@@ -27,6 +33,9 @@ from mathics.core.systemsymbols import (
     SymbolUnequal,
 )
 
+
+from mathics.core.convert.function import expression_to_callable_and_args
+
 if has_llvmlite:
     from mathics.builtin.compile import (
         _compile,
@@ -36,6 +45,41 @@ if has_llvmlite:
         bool_type,
         CompileError,
     )
+
+
+def test_compile_code():
+    for str_expr, x, res in [
+        ("Sin[x]", 1.5, 0.997495),
+        ("Exp[-x^2/2.]", 0.0, 1.0),
+        ("Sqrt[x]", 1.0, 1.0),
+        ("BesselJ[0,x]", 0.0, 1.0),
+        ("Exp[BesselJ[0,x]-1.]", 0.0, 1.0),
+    ]:
+
+        expr = session.evaluate("Compile[{x}, " + str_expr + " ]")
+        assert expr.get_head_name() == "System`CompiledFunction"
+        assert len(expr.elements) == 3
+        code = expr.elements[2]
+        assert isinstance(code, CompiledCode)
+        y = code.cfunc(x)
+        print(str_expr, code.cfunc)
+        assert abs(y - res) < 1.0e-6
+
+
+def test_builtin_fns_with_symbols_1():
+    for str_expr, x, res in [
+        ("Sin[x]", 1.5, 0.997495),
+        ("Exp[-x^2/2.]", 0.0, 1.0),
+        ("Sqrt[x]", 1.0, 1.0),
+        ("BesselJ[0,x]", 0.0, 1.0),
+    ]:
+        expr = session.evaluate(str_expr)
+        cfunc, args = expression_to_callable_and_args(
+            expr, [Symbol("Global`x")], session.evaluation
+        )
+        print(str_expr, cfunc)
+        y = cfunc(x)
+        assert abs(y - res) < 1.0e-6
 
 
 class CompileTest(unittest.TestCase):

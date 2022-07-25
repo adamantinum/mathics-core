@@ -7,12 +7,24 @@ Mathematical Functions
 Basic arithmetic functions, including complex number arithmetic.
 """
 
+# This tells documentation how to sort this module
+sort_order = "mathics.builtin.mathematical-functions"
+
 
 import sympy
 import mpmath
 from functools import lru_cache
 
-from mathics.core.evaluators import apply_N
+from mathics.core.attributes import (
+    hold_all as A_HOLD_ALL,
+    hold_rest as A_HOLD_REST,
+    listable as A_LISTABLE,
+    no_attributes as A_NO_ATTRIBUTES,
+    numeric_function as A_NUMERIC_FUNCTION,
+    protected as A_PROTECTED,
+)
+
+from mathics.core.evaluators import eval_N
 
 from mathics.builtin.base import (
     Builtin,
@@ -69,15 +81,6 @@ from mathics.core.systemsymbols import (
     SymbolUndefined,
 )
 
-from mathics.core.attributes import (
-    hold_all,
-    hold_rest,
-    listable,
-    no_attributes,
-    numeric_function,
-    protected,
-)
-
 
 @lru_cache(maxsize=1024)
 def call_mpmath(mpmath_function, mpmath_args):
@@ -106,15 +109,15 @@ class _MPMathFunction(SympyFunction):
     # However hey are not correct for some derived classes, like
     # InverseErf or InverseErfc.
     # So those classes should expclicitly set/override this.
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
 
     mpmath_name = None
 
-    nargs = 1
+    nargs = {1}
 
     @lru_cache(maxsize=1024)
     def get_mpmath_function(self, args):
-        if self.mpmath_name is None or len(args) != self.nargs:
+        if self.mpmath_name is None or len(args) not in self.nargs:
             return None
         return getattr(mpmath, self.mpmath_name)
 
@@ -172,7 +175,7 @@ class _MPMathFunction(SympyFunction):
         else:
             prec = min_prec(*args)
             d = dps(prec)
-            args = [apply_N(arg, evaluation, Integer(d)) for arg in args]
+            args = [eval_N(arg, evaluation, Integer(d)) for arg in args]
             with mpmath.workprec(prec):
                 mpmath_args = [x.to_mpmath() for x in args]
                 if None in mpmath_args:
@@ -349,7 +352,7 @@ class Re(SympyFunction):
     """
 
     summary_text = "real part"
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
     sympy_name = "re"
 
     def apply_complex(self, number, evaluation):
@@ -371,8 +374,8 @@ class Re(SympyFunction):
 class Im(SympyFunction):
     """
     <dl>
-    <dt>'Im[$z$]'
-        <dd>returns the imaginary component of the complex number $z$.
+      <dt>'Im[$z$]'
+      <dd>returns the imaginary component of the complex number $z$.
     </dl>
 
     >> Im[3+4I]
@@ -388,7 +391,7 @@ class Im(SympyFunction):
     """
 
     summary_text = "imaginary part"
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
 
     def apply_complex(self, number, evaluation):
         "Im[number_Complex]"
@@ -409,8 +412,8 @@ class Im(SympyFunction):
 class Conjugate(_MPMathFunction):
     """
     <dl>
-    <dt>'Conjugate[$z$]'
-        <dd>returns the complex conjugate of the complex number $z$.
+      <dt>'Conjugate[$z$]'
+      <dd>returns the complex conjugate of the complex number $z$.
     </dl>
 
     >> Conjugate[3 + 4 I]
@@ -440,8 +443,8 @@ class Conjugate(_MPMathFunction):
 class Abs(_MPMathFunction):
     """
     <dl>
-    <dt>'Abs[$x$]'
-        <dd>returns the absolute value of $x$.
+      <dt>'Abs[$x$]'
+      <dd>returns the absolute value of $x$.
     </dl>
     >> Abs[-3]
      = 3
@@ -511,7 +514,7 @@ class Arg(_MPMathFunction):
         "Arg[DirectedInfinity[a_]]": "Arg[a]",
     }
 
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
     options = {"Method": "Automatic"}
 
     numpy_name = "angle"  # for later
@@ -568,7 +571,7 @@ class Sign(SympyFunction):
     sympy_name = "sign"
     # mpmath_name = 'sign'
 
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
 
     messages = {
         "argx": "Sign called with `1` arguments; 1 argument is expected.",
@@ -672,7 +675,7 @@ class PossibleZeroQ(SympyFunction):
     """
 
     summary_text = "test whether an expression is estimated to be zero"
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
 
     sympy_name = "_iszero"
 
@@ -689,7 +692,7 @@ class PossibleZeroQ(SympyFunction):
             result = _iszero(exprexp)
         if result is None:
             # Can't get exact answer, so try approximate equal
-            numeric_val = apply_N(expr, evaluation)
+            numeric_val = eval_N(expr, evaluation)
             if numeric_val and hasattr(numeric_val, "is_approx_zero"):
                 result = numeric_val.is_approx_zero
             elif not numeric_val.is_numeric(evaluation):
@@ -842,7 +845,7 @@ class Rational_(Builtin):
     summary_text = "head for rational numbers"
     name = "Rational"
 
-    def apply(self, n, m, evaluation):
+    def apply(self, n: Integer, m: Integer, evaluation):
         "%(name)s[n_Integer, m_Integer]"
 
         if m.value == 1:
@@ -1183,7 +1186,7 @@ class Piecewise(SympyFunction):
     summary_text = "an arbitrary piecewise function"
     sympy_name = "Piecewise"
 
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
 
     def apply(self, items, evaluation):
         "%(name)s[items__]"
@@ -1255,7 +1258,7 @@ class Boole(Builtin):
     """
 
     summary_text = "translate 'True' to 1, and 'False' to 0"
-    attributes = listable | protected
+    attributes = A_LISTABLE | A_PROTECTED
 
     def apply(self, expr, evaluation):
         "%(name)s[expr_]"
@@ -1276,7 +1279,7 @@ class Assumptions(Predefined):
 
     summary_text = "assumptions used to simplify expressions"
     name = "$Assumptions"
-    attributes = no_attributes
+    attributes = A_NO_ATTRIBUTES
     rules = {
         "$Assumptions": "True",
     }
@@ -1304,7 +1307,7 @@ class Assuming(Builtin):
     """
 
     summary_text = "set assumptions during the evaluation"
-    attributes = hold_rest | protected
+    attributes = A_HOLD_REST | A_PROTECTED
 
     def apply_assuming(self, assumptions, expr, evaluation):
         "Assuming[assumptions_, expr_]"

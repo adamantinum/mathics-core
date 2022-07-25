@@ -9,6 +9,7 @@ Enhancements
 * ``SameQ`` (``===``) handles chaining, e.g. ``a == b == c`` or ``SameQ[a, b, c]``
 * ``Simplify`` handles properly expressions of the form ``Simplify[0^a]`` Issue #167.
 * ``Simplify`` and ``FullSimplify`` support optional parameters ``Assumptions`` and ``ComplexityFunction``
+* ``UnsameQ`` (``=!=``) handles chaining, e.g. ``a =!= b =!= c`` or ``UnsameQ[a, b, c]``
 * The order of the context name resolution (and ``$ContextPath``) switched putting ``"System`"`` before ``"Global`"``.
 * In assignment to messages associated with symbols, the attribute ``Protected`` is not having into account, following the standard in WMA. With this and the above change, Combinatorical 2.0 works as written.
 * ``Share[]`` performs an explicit call to the Python garbage collection and returns the amount of memory free.
@@ -26,14 +27,20 @@ Documentation
 New Builtins
 ============
 * Euler's ``Beta`` function.
+* ``Bernoulli``.
+* ``CatalanNumber`` (Integer arguments only).
+* ``CompositeQ``.
 * ``Diagonal``. Issue #115.
+* ``Divisible``.
 * ``EulerPhi``
 * ``$Echo``. Issue #42.
 * ``FindRoot`` was improved for supporting numerical derivatives Issue #67, as well as the use of scipy libraries when are available.
 * ``FindRoot`` (for the ``newton`` method) partially supports ``EvaluationMonitor`` and ``StepMonitor`` options.
 * ``FindMinimum`` and ``FindMaximum`` now have a minimal implementation for 1D problems and the use of scipy libraries when are available.
-* ``LogGamma`` function.
-* ``NumericFunction``
+* ``LogGamma``.
+* ``ModularInverse``.
+* ``NumericFunction``.
+* ``Projection``.
 * Partial support for Graphics option ``Opacity``.
 * ``SeriesData`` operations was improved.
 * ``TraceEvaluation[]`` shows expression name calls and return values of it argument.
@@ -47,6 +54,8 @@ Internals
 * ``Definition`` has a new property ``is_numeric``.
 * ``Symbol.is_numeric`` and  ``Expression.is_numeric`` now uses the attribute ``Definition.is_numeric`` to determine the returned value.
 * ``NIntegrate`` internal algorithms and interfaces to ``scipy`` were moved to ``mathics.algorithm.integrators`` and ``mathics.builtin.scipy_utils.integrators`` respectively.
+* ``N[Integrate[...]]`` now is evaluated as ``NIntegrate[...]``
+* To speed up attributes read, and RAM usage, attributes are now stored in a bitset instead of a tuple of strings.
 * Definitions for symbols ``CurrentContext`` and ``ContextPath[]`` are mirrored in the ``mathics.core.definitions.Definitions`` object for faster access.
 * ``FullForm[List[...]]`` now is shown as ``{...}`` according to the WL standard.
 * ``Expression.is_numeric()`` accepts an ``Evaluation`` object as a parameter;  the definitions attribute of that is used.
@@ -73,7 +82,7 @@ Speed improvements:
 * In ``Expression`` manipulation code, ``Symbol`` objects are now a singleton class. This avoids a lot of unnecessary string comparisons, and calls to ``ensure_context``.
 * Attributes are now stored in a bitset instead of a tuple of strings.
 * The ``Definitions`` object has two properties: ``current_contex`` and ``context_path``. This speeds up the lookup of symbols names.  These properties store their values into the corresponding symbols in the ``builtin`` definitions.
-* ``apply_N`` was add to speed up the then often-used built-in function ``N``.
+* ``eval_N`` was add to speed up the then often-used built-in function ``N``.
 
 
 Package update
@@ -93,7 +102,6 @@ Bugs
 ++++
 
 * ``First``, ``Rest`` and  ``Last`` now handle invalid arguments.
-* ``N`` now handles arbitrary precision numbers when the number of digits is not specified.
 *  ``Set*``: fixed issue #128.
 *  ``SameQ``: comparison with MachinePrecision only needs to be exact within the last bit Issue #148.
 * Fix a bug in ``Simplify`` that produced expressions of the form ``ConditionalExpression[_,{True}]``.
@@ -103,6 +111,12 @@ Bugs
 * Streams used in MathicsOpen are now freed and their file descriptors now released. Issue #326.
 * Some temporary files that were created are now removed from the filesystem. Issue #309.
 * There were a number of small changes/fixes involving ``NIntegrate`` and its Method options. ``Nintegrate`` tests have been expanded.
+* Fix a bug in handling arguments of pythonized expressions, that are produced by ``Compile`` when the llvmlite compiler fails.
+* ``N`` now handles arbitrary precision numbers when the number of digits is not specified.
+* `N[Indeterminate]` now produces `Indeterminate` instead a `PrecisionReal(nan)`.
+* Fix crash in ``NestWhile`` when supplying ``All`` as the fourth argument.
+* Fix the comparison between ``Image`` and other expressions.
+
 
 4.0.1
 -----

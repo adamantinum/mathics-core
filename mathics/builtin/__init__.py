@@ -34,7 +34,6 @@ from mathics.builtin.base import (
     SympyObject,
     Operator,
     PatternObject,
-    check_requires_list,
 )
 
 
@@ -174,21 +173,23 @@ disable_file_module_names = (
 
 for subdir in (
     "arithfns",
-    "atomic",
     "assignments",
+    "atomic",
+    "binary",
     "box",
     "colors",
     "distance",
     "drawing",
+    "fileformats",
     "files_io",
     "intfns",
     "list",
     "matrices",
-    "moments",
     "numbers",
     "specialfns",
+    "statistics",
     "string",
-    "fileformats",
+    "vectors",
 ):
     import_name = f"{__name__}.{subdir}"
 

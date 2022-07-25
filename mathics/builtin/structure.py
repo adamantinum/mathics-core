@@ -52,68 +52,6 @@ SymbolOperate = Symbol("Operate")
 SymbolSortBy = Symbol("SortBy")
 
 
-class Sort(Builtin):
-    """
-    <dl>
-      <dt>'Sort[$list$]'
-      <dd>sorts $list$ (or the elements of any other expression) according to canonical ordering.
-
-      <dt>'Sort[$list$, $p$]'
-      <dd>sorts using $p$ to determine the order of two elements.
-    </dl>
-
-    >> Sort[{4, 1.0, a, 3+I}]
-     = {1., 3 + I, 4, a}
-
-    Sort uses 'OrderedQ' to determine ordering by default.
-    You can sort patterns according to their precedence using 'PatternsOrderedQ':
-    >> Sort[{items___, item_, OptionsPattern[], item_symbol, item_?test}, PatternsOrderedQ]
-     = {item_symbol, item_ ? test, item_, items___, OptionsPattern[]}
-
-    When sorting patterns, values of atoms do not matter:
-    >> Sort[{a, b/;t}, PatternsOrderedQ]
-     = {b /; t, a}
-    >> Sort[{2+c_, 1+b__}, PatternsOrderedQ]
-     = {2 + c_, 1 + b__}
-    >> Sort[{x_ + n_*y_, x_ + y_}, PatternsOrderedQ]
-     = {x_ + n_ y_, x_ + y_}
-
-    #> Sort[{x_, y_}, PatternsOrderedQ]
-     = {x_, y_}
-    """
-
-    summary_text = "sort lexicographically or with any comparison function"
-
-    def apply(self, list, evaluation):
-        "Sort[list_]"
-
-        if isinstance(list, Atom):
-            evaluation.message("Sort", "normal")
-        else:
-            new_elements = sorted(list.elements)
-            return list.restructure(list.head, new_elements, evaluation)
-
-    def apply_predicate(self, list, p, evaluation):
-        "Sort[list_, p_]"
-
-        if isinstance(list, Atom):
-            evaluation.message("Sort", "normal")
-        else:
-
-            class Key:
-                def __init__(self, leaf):
-                    self.leaf = leaf
-
-                def __gt__(self, other):
-                    return (
-                        not Expression(p, self.leaf, other.leaf).evaluate(evaluation)
-                        is SymbolTrue
-                    )
-
-            new_elements = sorted(list.elements, key=Key)
-            return list.restructure(list.head, new_elements, evaluation)
-
-
 class SortBy(Builtin):
     """
     <dl>
@@ -602,17 +540,17 @@ class MapAt(Builtin):
                 j = m + i
             else:
                 raise PartRangeError
-            replace_leaf = new_elements[j]
-            if hasattr(replace_leaf, "head") and replace_leaf.head is Symbol(
+            replace_element = new_elements[j]
+            if hasattr(replace_element, "head") and replace_element.head is Symbol(
                 "System`Rule"
             ):
                 new_elements[j] = Expression(
                     SymbolRule,
-                    replace_leaf.elements[0],
-                    Expression(f, replace_leaf.elements[1]),
+                    replace_element.elements[0],
+                    Expression(f, replace_element.elements[1]),
                 )
             else:
-                new_elements[j] = Expression(f, replace_leaf)
+                new_elements[j] = Expression(f, replace_element)
             return new_elements
 
         a = args.to_python()
@@ -835,7 +773,7 @@ class MapThread(Builtin):
         if not expr.has_form("List", None):
             return evaluation.message("MapThread", "list", 2, full_expr)
 
-        heads = expr.get_elements()
+        heads = expr.elements
 
         def walk(args, depth=0):
             "walk all trees concurrently and build result"
@@ -1090,7 +1028,7 @@ class Flatten(Builtin):
                     evaluation.message("Flatten", "fldep", s, n, max_depth, expr)
                     return
 
-        # assign new indices to each leaf
+        # assign new indices to each element
         new_indices = {}
 
         def callback(expr, pos):
@@ -1104,31 +1042,31 @@ class Flatten(Builtin):
         # build new tree inserting nodes as needed
         elements = sorted(new_indices.items())
 
-        def insert_leaf(elements):
+        def insert_element(elements):
             # gather elements into groups with the same leading index
             # e.g. [((0, 0), a), ((0, 1), b), ((1, 0), c), ((1, 1), d)]
             # -> [[(0, a), (1, b)], [(0, c), (1, d)]]
             leading_index = None
             grouped_elements = []
-            for index, leaf in elements:
+            for index, element in elements:
                 if index[0] == leading_index:
-                    grouped_elements[-1].append((index[1:], leaf))
+                    grouped_elements[-1].append((index[1:], element))
                 else:
                     leading_index = index[0]
-                    grouped_elements.append([(index[1:], leaf)])
+                    grouped_elements.append([(index[1:], element)])
             # for each group of elements we either insert them into the current level
             # or make a new level and recurse
             new_elements = []
             for group in grouped_elements:
-                if len(group[0][0]) == 0:  # bottom level leaf
+                if len(group[0][0]) == 0:  # bottom level element or leaf
                     assert len(group) == 1
                     new_elements.append(group[0][1])
                 else:
-                    new_elements.append(Expression(h, *insert_leaf(group)))
+                    new_elements.append(Expression(h, *insert_element(group)))
 
             return new_elements
 
-        return Expression(h, *insert_leaf(elements))
+        return Expression(h, *insert_element(elements))
 
     def apply(self, expr, n, h, evaluation):
         "Flatten[expr_, n_, h_]"

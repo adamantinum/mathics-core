@@ -18,7 +18,6 @@ from mathics.algorithm.clusters import (
     kmeans,
     optimize,
 )
-from mathics.algorithm.introselect import introselect
 from mathics.algorithm.parts import (
     python_levelspec,
     walk_levels,
@@ -48,7 +47,6 @@ from mathics.builtin.options import options_to_rules
 from mathics.builtin.scoping import dynamic_scoping
 
 from mathics.core.atoms import (
-    ByteArrayAtom,
     Integer,
     Integer0,
     Integer1,
@@ -70,7 +68,7 @@ from mathics.core.attributes import (
 from mathics.core.convert.expression import to_expression, to_mathics_list
 from mathics.core.convert.python import from_python
 from mathics.core.convert.sympy import from_sympy
-from mathics.core.evaluators import apply_N
+from mathics.core.evaluators import eval_N
 from mathics.core.expression import Expression, structure
 
 from mathics.core.interrupt import BreakInterrupt, ContinueInterrupt, ReturnInterrupt
@@ -86,7 +84,6 @@ from mathics.core.symbols import (
 
 from mathics.core.systemsymbols import (
     SymbolAlternatives,
-    SymbolByteArray,
     SymbolFailed,
     SymbolGreaterEqual,
     SymbolLess,
@@ -103,8 +100,6 @@ SymbolClusteringComponents = Symbol("ClusteringComponents")
 SymbolContainsOnly = Symbol("ContainsOnly")
 SymbolFindClusters = Symbol("FindClusters")
 SymbolKey = Symbol("Key")
-SymbolRankedMax = Symbol("RankedMax")
-SymbolRankedMin = Symbol("RankedMin")
 SymbolSplit = Symbol("Split")
 
 
@@ -117,66 +112,6 @@ class All(Predefined):
     """
 
     summary_text = "all the parts in the level"
-
-
-class ByteArray(Builtin):
-    r"""
-    <dl>
-    <dt>'ByteArray[{$b_1$, $b_2$, ...}]'
-       <dd> Represents a sequence of Bytes $b_1$, $b_2$, ...
-    <dt>'ByteArray["string"]'
-       <dd> Constructs a byte array where bytes comes from decode a b64 encoded String
-    </dl>
-
-    >> A=ByteArray[{1, 25, 3}]
-     = ByteArray["ARkD"]
-    >> A[[2]]
-     = 25
-    >> Normal[A]
-     = {1, 25, 3}
-    >> ToString[A]
-     = ByteArray["ARkD"]
-    >> ByteArray["ARkD"]
-     = ByteArray["ARkD"]
-    >> B=ByteArray["asy"]
-     : The first argument in Bytearray[asy] should be a B64 enconded string or a vector of integers.
-     = $Failed
-    """
-
-    messages = {
-        "aotd": "Elements in `1` are inconsistent with type Byte",
-        "lend": "The first argument in Bytearray[`1`] should "
-        + "be a B64 enconded string or a vector of integers.",
-    }
-    summary_text = "array of bytes"
-
-    def apply_str(self, string, evaluation):
-        "ByteArray[string_String]"
-        try:
-            atom = ByteArrayAtom(string.value)
-        except Exception:
-            evaluation.message("ByteArray", "lend", string)
-            return SymbolFailed
-        return Expression(SymbolByteArray, atom)
-
-    def apply_to_str(self, baa, evaluation):
-        "ToString[ByteArray[baa_ByteArrayAtom]]"
-        return String('ByteArray["' + baa.__str__() + '"]')
-
-    def apply_normal(self, baa, evaluation):
-        "System`Normal[ByteArray[baa_ByteArrayAtom]]"
-        return to_mathics_list(*baa.value, elements_conversion_fn=Integer)
-
-    def apply_list(self, values, evaluation):
-        "ByteArray[values_List]"
-        if not values.has_form("List", None):
-            return
-        try:
-            ba = bytearray([b.get_int_value() for b in values.elements])
-        except Exception:
-            evaluation.message("ByteArray", "aotd", values)
-            return
-        return Expression(SymbolByteArray, ByteArrayAtom(ba))
 
 
 class ContainsOnly(Builtin):
@@ -1231,49 +1166,6 @@ def get_tuples(items):
                 yield [item] + rest
 
 
-class UnitVector(Builtin):
-    """
-    <dl>
-    <dt>'UnitVector[$n$, $k$]'
-        <dd>returns the $n$-dimensional unit vector with a 1 in position $k$.
-    <dt>'UnitVector[$k$]'
-        <dd>is equivalent to 'UnitVector[2, $k$]'.
-    </dl>
-    >> UnitVector[2]
-     = {0, 1}
-    >> UnitVector[4, 3]
-     = {0, 0, 1, 0}
-    """
-
-    messages = {
-        "nokun": "There is no unit vector in direction `1` in `2` dimensions.",
-    }
-
-    rules = {
-        "UnitVector[k_Integer]": "UnitVector[2, k]",
-    }
-    summary_text = "unit vector along a coordinate direction"
-
-    def apply(self, n: Integer, k: Integer, evaluation):
-        "UnitVector[n_Integer, k_Integer]"
-
-        py_n = n.value
-        py_k = k.value
-        if py_n is None or py_k is None:
-            return
-        if not 1 <= py_k <= py_n:
-            evaluation.message("UnitVector", "nokun", k, n)
-            return
-
-        def item(i):
-            if i == py_k:
-                return Integer1
-            else:
-                return Integer0
-
-        return ListExpression(*(item(i) for i in range(1, py_n + 1)))
-
-
 class IntersectingQ(Builtin):
     """
     <dl>
@@ -1363,7 +1255,8 @@ class _Rectangular(Builtin):
             raise _NotRectangularException()
 
         transposed = [
-            [sleaf.elements[i] for sleaf in element.elements] for i in range(n_columns)
+            [element.elements[i] for element in element.elements]
+            for i in range(n_columns)
         ]
 
         return ListExpression(
@@ -1372,70 +1265,6 @@ class _Rectangular(Builtin):
                 for items in transposed
             ],
         )
-
-
-class RankedMin(Builtin):
-    """
-    <dl>
-    <dt>'RankedMin[$list$, $n$]'
-      <dd>returns the $n$th smallest element of $list$ (with $n$ = 1 yielding the smallest element,
-      $n$ = 2 yielding the second smallest element, and so on).
-    </dl>
-
-    >> RankedMin[{482, 17, 181, -12}, 2]
-     = 17
-    """
-
-    messages = {
-        "intpm": "Expected positive integer at position 2 in ``.",
-        "rank": "The specified rank `1` is not between 1 and `2`.",
-    }
-    summary_text = "the n-th smallest item"
-
-    def apply(self, element, n: Integer, evaluation):
-        "RankedMin[element_List, n_Integer]"
-        py_n = n.value
-        if py_n < 1:
-            evaluation.message(
-                "RankedMin", "intpm", Expression(SymbolRankedMin, element, n)
-            )
-        elif py_n > len(element.elements):
-            evaluation.message("RankedMin", "rank", py_n, len(element.elements))
-        else:
-            return introselect(element.get_mutable_elements(), py_n - 1)
-
-
-class RankedMax(Builtin):
-    """
-    <dl>
-    <dt>'RankedMax[$list$, $n$]'
-      <dd>returns the $n$th largest element of $list$ (with $n$ = 1 yielding the largest element,
-      $n$ = 2 yielding the second largest element, and so on).
-    </dl>
-
-    >> RankedMax[{482, 17, 181, -12}, 2]
-     = 181
-    """
-
-    messages = {
-        "intpm": "Expected positive integer at position 2 in ``.",
-        "rank": "The specified rank `1` is not between 1 and `2`.",
-    }
-    summary_text = "the n-th largest item"
-
-    def apply(self, element, n: Integer, evaluation):
-        "RankedMax[element_List, n_Integer]"
-        py_n = n.value
-        if py_n < 1:
-            evaluation.message(
-                "RankedMax", "intpm", Expression(SymbolRankedMax, element, n)
-            )
-        elif py_n > len(element.elements):
-            evaluation.message("RankedMax", "rank", py_n, len(element.elements))
-        else:
-            return introselect(
-                element.get_mutable_elements(), len(element.elements) - py_n
-            )
 
 
 class _RankedTake(Builtin):
@@ -1550,33 +1379,6 @@ class _RankedTakeLargest(_RankedTake):
         return heapq.nlargest(n, heap)
 
 
-class TakeLargest(_RankedTakeLargest):
-    """
-    <dl>
-    <dt>'TakeLargest[$list$, $f$, $n$]'
-        <dd>returns the a sorted list of the $n$ largest items in $list$.
-    </dl>
-
-    >> TakeLargest[{100, -1, 50, 10}, 2]
-     = {100, 50}
-
-    None, Null, Indeterminate and expressions with head Missing are ignored
-    by default:
-    >> TakeLargest[{-8, 150, Missing[abc]}, 2]
-     = {150, -8}
-
-    You may specify which items are ignored using the option ExcludedForms:
-    >> TakeLargest[{-8, 150, Missing[abc]}, 2, ExcludedForms -> {}]
-     = {Missing[abc], 150}
-    """
-
-    summary_text = "sublist of n largest elements"
-
-    def apply(self, element, n, evaluation, options):
-        "TakeLargest[element_List, n_, OptionsPattern[TakeLargest]]"
-        return self._compute(element, n, evaluation, options)
-
-
 class TakeLargestBy(_RankedTakeLargest):
     """
     <dl>
@@ -1599,26 +1401,6 @@ class TakeLargestBy(_RankedTakeLargest):
     def apply(self, element, f, n, evaluation, options):
         "TakeLargestBy[element_List, f_, n_, OptionsPattern[TakeLargestBy]]"
         return self._compute(element, n, evaluation, options, f=f)
-
-
-class TakeSmallest(_RankedTakeSmallest):
-    """
-    <dl>
-    <dt>'TakeSmallest[$list$, $f$, $n$]'
-        <dd>returns the a sorted list of the $n$ smallest items in $list$.
-    </dl>
-
-    For details on how to use the ExcludedForms option, see TakeLargest[].
-
-    >> TakeSmallest[{100, -1, 50, 10}, 2]
-     = {-1, 10}
-    """
-
-    summary_text = "sublist of n smallest elements"
-
-    def apply(self, element, n, evaluation, options):
-        "TakeSmallest[element_List, n_, OptionsPattern[TakeSmallest]]"
-        return self._compute(element, n, evaluation, options)
 
 
 class TakeSmallestBy(_RankedTakeSmallest):
@@ -1758,8 +1540,8 @@ class _Pad(Builtin):
         if isinstance(in_n, Symbol) and in_n.get_name() == "System`Automatic":
             py_n = _Pad._find_dims(in_l)
         elif in_n.get_head_name() == "System`List":
-            if all(isinstance(sleaf, Integer) for sleaf in in_n.elements):
-                py_n = [sleaf.get_int_value() for sleaf in in_n.elements]
+            if all(isinstance(element, Integer) for element in in_n.elements):
+                py_n = [element.get_int_value() for element in in_n.elements]
         elif isinstance(in_n, Integer):
             py_n = [in_n.get_int_value()]
 
@@ -1931,7 +1713,7 @@ class _PrecomputedDistances(PrecomputedDistances):
 
     def __init__(self, df, p, evaluation):
         distances_form = [df(p[i], p[j]) for i in range(len(p)) for j in range(i)]
-        distances = apply_N(ListExpression(*distances_form), evaluation)
+        distances = eval_N(ListExpression(*distances_form), evaluation)
         mpmath_distances = [_to_real_distance(d) for d in distances.elements]
         super(_PrecomputedDistances, self).__init__(mpmath_distances)
 
@@ -1947,7 +1729,7 @@ class _LazyDistances(LazyDistances):
 
     def _compute_distance(self, i, j):
         p = self._p
-        d = apply_N(self._df(p[i], p[j]), self._evaluation)
+        d = eval_N(self._df(p[i], p[j]), self._evaluation)
         return _to_real_distance(d)
 
 

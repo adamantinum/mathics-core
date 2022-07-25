@@ -144,7 +144,31 @@ class KeyComparable:
     is the primative from which all other comparsions are based on.
     """
 
-    def get_sort_key(self):
+    # FIXME: return type should be a specific kind of Tuple, not a list.
+    def get_sort_key(self) -> list:
+        """
+
+        Returns a particular encoded list (better though would be a tuple) that is used
+        in ``Sort[]`` comparisons and in the ordering that occurs
+        in an M-Expression which has the ``Orderless`` property.
+
+        The encoded tuple/list is selected to have the property: when
+        compared against element ``expr`` in a compound expression, if
+
+           `self.get_sort_key() <= expr.get_sort_key()`
+
+        then self comes before expr.
+
+        The values in the positions of the list/tuple are used to indicate how comparison should be
+        treated for specific element classes.
+
+        position  type class
+          0:      atom
+          1:      Numeric expression
+          2:      Algebraic / general Expression
+
+        Subsequent positions of the tuple/list depend on the kind of element.
+        """
         raise NotImplementedError
 
     def __eq__(self, other) -> bool:
@@ -348,6 +372,13 @@ class BaseElement(KeyComparable):
             return self == rhs
         return None
 
+    def evaluate(self, evaluation) -> "BaseElement":
+        """
+        Evaluates the element.
+        Each subclass should decide what is right here.
+        """
+        raise NotImplementedError
+
     # FIXME the fact that we have to import all of these symbols means
     # modularity is broken somehwere.
     # And format really doesn't belong here.
@@ -422,7 +453,7 @@ class BaseElement(KeyComparable):
     def get_option_values(self, evaluation, allow_symbols=False, stop_on_error=True):
         pass
 
-    def get_precision(self) -> None:
+    def get_precision(self) -> Optional[float]:
         """Returns the default specification for precision in N and other
         numerical functions.  It is expected to be redefined in those
         classes that provide inexact arithmetic like PrecisionReal.
@@ -558,9 +589,6 @@ class EvalMixin:
     Class associated to evaluable elements
     """
 
-    def evaluate(self, evaluation):
-        pass
-
     @property
     def is_literal(self) -> bool:
         """
@@ -582,3 +610,9 @@ class EvalMixin:
         do not need further evaluation.
         """
         return self.evaluate(evaluation), False
+
+    def sameQ(self, other) -> bool:
+        """Mathics SameQ
+        Each class should decide what is right here.
+        """
+        raise NotImplementedError

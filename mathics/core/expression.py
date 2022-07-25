@@ -14,27 +14,26 @@ from mathics.core.atoms import Integer, Number, String
 
 # FIXME: adjust mathics.core.attributes to uppercase attribute names
 from mathics.core.attributes import (
-    flat as FLAT,
-    hold_all as HOLD_ALL,
-    hold_all_complete as HOLD_ALL_COMPLETE,
-    hold_first as HOLD_FIRST,
-    hold_rest as HOLD_REST,
-    listable as LISTABLE,
-    no_attributes as NO_ATTRIBUTES,
-    numeric_function as NUMERIC_FUNCTION,
-    orderless as ORDERLESS,
-    sequence_hold as SEQUENCE_HOLD,
+    flat as A_FLAT,
+    hold_all as A_HOLD_ALL,
+    hold_all_complete as A_HOLD_ALL_COMPLETE,
+    hold_first as A_HOLD_FIRST,
+    hold_rest as A_HOLD_REST,
+    listable as A_LISTABLE,
+    no_attributes as A_NO_ATTRIBUTES,
+    numeric_function as A_NUMERIC_FUNCTION,
+    orderless as A_ORDERLESS,
+    sequence_hold as A_SEQUENCE_HOLD,
 )
 from mathics.core.convert.sympy import sympy_symbol_prefix, SympyExpression
 from mathics.core.convert.python import from_python
-from mathics.core.element import ensure_context, ElementsProperties
+from mathics.core.element import ElementsProperties, EvalMixin, ensure_context
 from mathics.core.evaluation import Evaluation
 from mathics.core.interrupt import ReturnInterrupt
 from mathics.core.number import dps
 from mathics.core.symbols import (
     Atom,
     BaseElement,
-    EvalMixin,
     Monomial,
     NumericOperators,
     Symbol,
@@ -208,20 +207,9 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
 
         self._head = head
         self._elements = elements
-
-        # comment mmatera: I found that in certain cases, the elements_properties
-        # passed as the parameter does not matches with those we generate with build:elements_properties.
-        # This is the cause of the error in the test_series.py pytest.
-        # Once it be fixed, we can uncomment the following code and remove the previous line
-        # assert (elements_properties is None or
-        #        self.elements_properties == elements_properties), ("element properties do not match",
-        #                                                           self, (self.elements_properties,
-        #                                                                  elements_properties)
-        #                                                           )
-        # After things are clean we should not run _build_elements_properties. This is done
-        # when needed in self.rewrite_apply_eval()
-        # self.elements_properties = elements_properties
-        self._build_elements_properties()
+        self.elements_properties = elements_properties
+        #        if elements_properties is None:
+        #            self._build_elements_properties()
 
         self._sequences = None
         self._cache = None
@@ -434,7 +422,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
     def evaluate(
         self,
         evaluation: Evaluation,
-    ) -> typing.Type["BaseElement"]:
+    ) -> Optional[typing.Type["BaseElement"]]:
         """
         Apply transformation rules and expression evaluation to ``evaluation`` via
         ``rewrite_apply_eval_step()`` until that method tells us to stop,
@@ -467,7 +455,6 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                 # then evaluating again will produce the same result
                 if not expr.is_uncertain_final_definitions(definitions):
                     break
-
                 # Here the names of the lookupname of the expression
                 # are stored. This is necesary for the implementation
                 # of the builtin `Return[]`
@@ -644,7 +631,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                 return (str(res),)
             elif res.has_form("List", None):
                 return set(str(a) for a in res._elements)
-        return NO_ATTRIBUTES
+        return A_NO_ATTRIBUTES
 
     def get_elements(self):
         # print("Use of get_elements is deprecated. Use elements instead.")
@@ -659,7 +646,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
     def get_head_name(self):
         return self._head.name if isinstance(self._head, Symbol) else ""
 
-    def get_lookup_name(self) -> bool:
+    def get_lookup_name(self) -> str:
         lookup_symbol = self._head
         while True:
             if isinstance(lookup_symbol, Symbol):
@@ -676,7 +663,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
 
     def get_option_values(
         self, evaluation, allow_symbols=False, stop_on_error=True
-    ) -> dict:
+    ) -> Optional[dict]:
         """
         Build a dictionary of options from an expression.
         For example Symbol("Integrate").get_option_values(evaluation, allow_symbols=True)
@@ -700,18 +687,19 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                         return None
                     else:
                         continue
-                name = option.leaves[0].get_name()
-                if not name and isinstance(option.leaves[0], String):
-                    name = ensure_context(option.leaves[0].get_string_value())
+                name = option.elements[0].get_name()
+                if not name and isinstance(option.elements[0], String):
+                    name = ensure_context(option.elements[0].get_string_value())
                 if not name:
                     if stop_on_error:
                         return None
                     else:
                         continue
-                option_values[name] = option.leaves[1]
+                option_values[name] = option.elements[1]
         return option_values
 
-    def get_sort_key(self, pattern_sort=False):
+    # FIXME: return type should be a specific kind of Tuple, not a list.
+    def get_sort_key(self, pattern_sort=False) -> list:
 
         if pattern_sort:
             """
@@ -723,7 +711,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
             3: 0/1:        0 for Pattern
             4: 0/1:        1 for Optional
             5: head / 0 for atoms
-            6: leaves / 0 for atoms
+            6: elements / 0 for atoms
             7: 0/1:        0 for Condition
             """
 
@@ -795,7 +783,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
             elif head is SymbolOptionsPattern:
                 return [2, 40, 0, 1, 1, 0, head, self._elements, 1]
             else:
-                # Append [4] to leaves so that longer expressions have higher
+                # Append [4] to elements so that longer expressions have higher
                 # precedence
                 return [
                     2,
@@ -813,6 +801,14 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                     1,
                 ]
         else:
+            """
+            General sort key structure:
+            0: 1/2:        Numeric / General Expression
+            1: 2/3         Special arithmetic (Times / Power) / General Expression
+            2: Element:        Head
+            3: tuple:        list of Elements
+            4: 1:        No clue...
+            """
             exps = {}
             head = self._head
             if head is SymbolTimes:
@@ -842,6 +838,14 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                 ]
             else:
                 return [1 if self.is_numeric() else 2, 3, head, self._elements, 1]
+
+    @property
+    def head(self):
+        return self._head
+
+    @head.setter
+    def head(self, value):
+        raise ValueError("Expression.head is write protected.")
 
     @property
     def is_literal(self) -> bool:
@@ -916,30 +920,25 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                     return False
         return True
 
-    def has_symbol(self, symbol_name) -> bool:
-        if self._no_symbol(symbol_name):
+    def has_symbol(self, symbol_name: str) -> bool:
+        """
+        Return True if the expression contains ``symbol_name`` in its head or
+        any of its elements.
+
+        One place where we want to check for symbols is in to
+        determine whether an Expression cache needs to be
+        invalidated. Another place is in Series expansion.
+
+        Note that head in an M-Expression can be an expression.
+        Derivative and Series are like this.
+        """
+        if self._no_symbol(symbol_name) or not hasattr(self._head, "has_symbol"):
             return False
         return self._head.has_symbol(symbol_name) or any(
-            element.has_symbol(symbol_name) for element in self._elements
+            element.has_symbol(symbol_name)
+            for element in self._elements
+            if hasattr(element, "has_symbol")
         )
-
-    @property
-    def head(self):
-        return self._head
-
-    @head.setter
-    def head(self, value):
-        raise ValueError("Expression.head is write protected.")
-
-    # Deprecated - remove eventually
-    @property
-    def leaves(self):
-        return self._elements
-
-    # Deprecated - remove eventually
-    @leaves.setter
-    def leaves(self, value):
-        raise ValueError("Expression.leaves is write protected.")
 
     def restructure(self, head, elements, evaluation, structure_cache=None, deps=None):
         """Faster equivalent of: Expression(head, *elements)
@@ -997,8 +996,10 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
 
         # @timeit
         def eval_elements():
+            nonlocal recompute_properties
             # @timeit
             def eval_range(indices):
+                nonlocal recompute_properties
                 recompute_properties = False
                 for index in indices:
                     element = elements[index]
@@ -1010,15 +1011,12 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                                 recompute_properties = True
                                 elements[index] = new_value
 
-                if recompute_properties:
-                    self._build_elements_properties()
-
             # @timeit
             def rest_range(indices):
-                if not HOLD_ALL_COMPLETE & attributes:
+                nonlocal recompute_properties
+                if not A_HOLD_ALL_COMPLETE & attributes:
                     if self._no_symbol("System`Evaluate"):
                         return
-                    recompute_properties = False
                     for index in indices:
                         element = elements[index]
                         if element.has_form("Evaluate", 1):
@@ -1029,16 +1027,13 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                                     elements[index] = new_value
                                     recompute_properties = True
 
-                    if recompute_properties:
-                        self._build_elements_properties()
-
-            if (HOLD_ALL | HOLD_ALL_COMPLETE) & attributes:
+            if (A_HOLD_ALL | A_HOLD_ALL_COMPLETE) & attributes:
                 # eval_range(range(0, 0))
                 rest_range(range(len(elements)))
-            elif HOLD_FIRST & attributes:
+            elif A_HOLD_FIRST & attributes:
                 rest_range(range(0, min(1, len(elements))))
                 eval_range(range(1, len(elements)))
-            elif HOLD_REST & attributes:
+            elif A_HOLD_REST & attributes:
                 eval_range(range(0, min(1, len(elements))))
                 rest_range(range(1, len(elements)))
             else:
@@ -1050,7 +1045,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         # * evaluate elements,
         # * run to_python() on them in Expression construction, or
         # * convert Expression elements from a tuple to a list and back
-
+        recompute_properties = False
         if self.elements_properties.elements_fully_evaluated:
             elements = self._elements
         else:
@@ -1058,13 +1053,19 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
             # FIXME: see if we can preserve elements properties in eval_elements()
             eval_elements()
 
-        new = Expression(head, *elements, elements_properties=self.elements_properties)
+        if recompute_properties:
+            new = Expression(head, *elements, elements_properties=None)
+            new._build_elements_properties()
+        else:
+            new = Expression(
+                head, *elements, elements_properties=self.elements_properties
+            )
 
         # Step 3: Now, process the attributes of head
         # If there are sequence, flatten them if the attributes allow it.
         if (
             not new.elements_properties.is_flat
-            and not (SEQUENCE_HOLD | HOLD_ALL_COMPLETE) & attributes
+            and not (A_SEQUENCE_HOLD | A_HOLD_ALL_COMPLETE) & attributes
         ):
             # This step is applied to most of the expressions
             # and could be heavy for expressions with many elements (like long lists)
@@ -1084,7 +1085,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         for element in elements:
             element.unevaluated = False
 
-        # If HoldAllComplete Attribute (flag ``HOLD_ALL_COMPLETE``) is not set,
+        # If HoldAllComplete Attribute (flag ``A_HOLD_ALL_COMPLETE``) is not set,
         # and the expression has elements of the form  `Unevaluated[element]`
         # change them to `element` and set a flag `unevaluated=True`
         # If the evaluation fails, use this flag to restore back the initial form
@@ -1096,7 +1097,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         # to recover a list of positions that (eventually)
         # must be marked again as Unevaluated.
 
-        if not HOLD_ALL_COMPLETE & attributes:
+        if not A_HOLD_ALL_COMPLETE & attributes:
             dirty_elements = None
 
             for index, element in enumerate(elements):
@@ -1111,22 +1112,23 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                 elements = dirty_elements
                 new._build_elements_properties()
 
-        # If the Attribute ``Flat`` (flag ``FLAT``) is set, calls
+        # If the Attribute ``Flat`` (flag ``A_FLAT``) is set, calls
         # flatten with a callback that set elements as unevaluated
         # too.
         def flatten_callback(new_elements, old):
             for element in new_elements:
                 element.unevaluated = old.unevaluated
 
-        if FLAT & attributes:
+        if A_FLAT & attributes:
             new = new.flatten_with_respect_to_head(new._head, callback=flatten_callback)
             if new.elements_properties is None:
                 new._build_elements_properties()
 
-        # If the attribute `Orderless` is set, sort the elements, according to the
-        # `get_sort` criteria.
-        # the most expensive part of this is to build the sort key.
-        if not new.elements_properties.is_ordered and (ORDERLESS & attributes):
+        # If the attribute ``Orderless`` is set, sort the elements, according to the
+        # element's ``get_sort_key()`` method.
+        # Sorting can be time consuming which is why we note this in ``elements_properties``.
+        # Checking for sortedness takes O(n) while sorting take O(n log n).
+        if not new.elements_properties.is_ordered and (A_ORDERLESS & attributes):
             new.sort()
 
         # Step 4:  Rebuild the ExpressionCache, which tracks which symbols
@@ -1137,7 +1139,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         # Step 5: Must we need to thread-rewrite the expression?
         #
         # Threading is needed when head has the ``Listable``
-        # Attribute (or flag ``LISTABLE``).
+        # Attribute (or flag ``A_LISTABLE``).
         # ``Expression.thread`` rewrites the expression:
         #  ``F[{a,b,c,...}]`` as:
         #  ``{F[a], F[b], F[c], ...}``.
@@ -1149,7 +1151,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         # Right now, we do not make use of Python thread or hardware
         # threading.  Still, we need to perform this rewrite to
         # maintain correct semantic behavior.
-        if LISTABLE & attributes:
+        if A_LISTABLE & attributes:
             done, threaded = new.thread(evaluation)
             if done:
                 if threaded.sameQ(new):
@@ -1187,7 +1189,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
 
         def rules():
             rules_names = set()
-            if not HOLD_ALL_COMPLETE & attributes:
+            if not A_HOLD_ALL_COMPLETE & attributes:
                 for element in elements:
                     if not isinstance(element, EvalMixin):
                         continue
@@ -1345,12 +1347,14 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
 
         n_evaluation = kwargs.get("n_evaluation")
         head = self._head
+        if head is SymbolFunction:
+
+            from mathics.core.convert.function import expression_to_callable_and_args
+
+            vars, expr_fn = self.elements
+            return expression_to_callable_and_args(expr_fn, vars, n_evaluation)
+
         if n_evaluation is not None:
-            if head is SymbolFunction:
-                compiled = Expression(SymbolCompile, *(self._elements))
-                compiled = compiled.evaluate(n_evaluation)
-                if compiled.get_head() is SymbolCompiledFunction:
-                    return compiled.leaves[2].cfunc
             value = Expression(SymbolN, self).evaluate(n_evaluation)
             return value.to_python()
 
@@ -1381,7 +1385,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         from mathics.builtin import mathics_to_sympy
 
         if "convert_all_global_functions" in kwargs:
-            if len(self.leaves) > 0 and kwargs["convert_all_global_functions"]:
+            if len(self.elements) > 0 and kwargs["convert_all_global_functions"]:
                 if self.get_head_name().startswith("Global`"):
                     return self._as_sympy_function(**kwargs)
 
@@ -1633,7 +1637,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
 
     def is_numeric(self, evaluation=None) -> bool:
         if evaluation:
-            if not NUMERIC_FUNCTION & evaluation.definitions.get_attributes(
+            if not A_NUMERIC_FUNCTION & evaluation.definitions.get_attributes(
                 self._head.get_name()
             ):
                 return False

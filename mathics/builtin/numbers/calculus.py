@@ -25,11 +25,13 @@ from mathics.algorithm.series import (
     series_times_series,
     series_derivative,
 )
+from mathics.core.convert.function import expression_to_callable_and_args
 from mathics.builtin.base import Builtin, PostfixOperator, SympyFunction
 from mathics.builtin.scoping import dynamic_scoping
 
 from mathics.core.atoms import (
     String,
+    Atom,
     Integer,
     Integer0,
     Integer1,
@@ -51,14 +53,13 @@ from mathics.core.convert.expression import to_expression, to_mathics_list
 from mathics.core.convert.python import from_python
 from mathics.core.convert.sympy import sympy_symbol_prefix, SympyExpression, from_sympy
 from mathics.core.evaluation import Evaluation
-from mathics.core.evaluators import apply_N
+from mathics.core.evaluators import eval_N
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
 from mathics.core.number import dps, machine_epsilon
 from mathics.core.rules import Pattern
 
 from mathics.core.symbols import (
-    Atom,
     BaseElement,
     Symbol,
     SymbolFalse,
@@ -72,7 +73,6 @@ from mathics.core.symbols import (
 from mathics.core.systemsymbols import (
     SymbolAnd,
     SymbolAutomatic,
-    SymbolCompile,
     SymbolConditionalExpression,
     SymbolD,
     SymbolDerivative,
@@ -581,6 +581,8 @@ class Integrate(SympyFunction):
     and,
     >> D[Integrate[f[u, x],{u, a[x], b[x]}], x]
      = Integrate[Derivative[0, 1][f][u, x], {u, a[x], b[x]}] - f[a[x], x] a'[x] + f[b[x], x] b'[x]
+    >> N[Integrate[Sin[Exp[-x^2 /2 ]],{x,1,2}]]
+     = 0.330804
     """
     # Reinstate as a unit test or describe why it should be an example and fix.
     # >> Integrate[x/Exp[x^2/t], {x, 0, Infinity}]
@@ -604,6 +606,7 @@ class Integrate(SympyFunction):
     }
 
     rules = {
+        "N[Integrate[f_, x__List]]": "NIntegrate[f, x]",
         "Integrate[list_List, x_]": "Integrate[#, x]& /@ list",
         "MakeBoxes[Integrate[f_, x_], form:StandardForm|TraditionalForm]": r"""RowBox[{"\[Integral]","\[InvisibleTimes]", MakeBoxes[f, form], "\[InvisibleTimes]",
                 RowBox[{"\[DifferentialD]", MakeBoxes[x, form]}]}]""",
@@ -683,9 +686,13 @@ class Integrate(SympyFunction):
             return
         if prec is not None and isinstance(sympy_result, sympy.Integral):
             # TODO MaxExtraPrecision -> maxn
-            result = sympy_result.evalf(dps(prec))
-        else:
-            result = from_sympy(sympy_result)
+            sympy_result = sympy_result.evalf(dps(prec))
+
+        result = from_sympy(sympy_result)
+        # If we obtain an atom (number or symbol)
+        # just return...
+        if isinstance(result, Atom):
+            return result
         # If the result is defined as a Piecewise expression,
         # use ConditionalExpression.
         # This does not work now because the form sympy returns the values
@@ -1319,7 +1326,7 @@ class _BaseFinder(Builtin):
         # This is needed to get the right messages
         options["_isfindmaximum"] = self.__class__ is FindMaximum
         # First, determine x0 and x
-        x0 = apply_N(x0, evaluation)
+        x0 = eval_N(x0, evaluation)
         # deal with non 1D problems.
         if isinstance(x0, Expression) and x0._head is SymbolList:
             options["_x0"] = x0.elements
@@ -1420,10 +1427,11 @@ class _BaseFinder(Builtin):
 class FindRoot(_BaseFinder):
     r"""
     <dl>
-    <dt>'FindRoot[$f$, {$x$, $x0$}]'
-        <dd>searches for a numerical root of $f$, starting from '$x$=$x0$'.
-    <dt>'FindRoot[$lhs$ == $rhs$, {$x$, $x0$}]'
-        <dd>tries to solve the equation '$lhs$ == $rhs$'.
+      <dt>'FindRoot[$f$, {$x$, $x0$}]'
+      <dd>searches for a numerical root of $f$, starting from '$x$=$x0$'.
+
+      <dt>'FindRoot[$lhs$ == $rhs$, {$x$, $x0$}]'
+      <dd>tries to solve the equation '$lhs$ == $rhs$'.
     </dl>
 
     'FindRoot' by default uses Newton\'s method, so the function of interest should have a first derivative.
@@ -1475,7 +1483,7 @@ class FindRoot(_BaseFinder):
         "FindRoot[lhs_ == rhs_, {x_, xs_}, opt:OptionsPattern[]]": "FindRoot[lhs-rhs, {x, xs}, opt]",
         "FindRoot[lhs_ == rhs_, x__, opt:OptionsPattern[]]": "FindRoot[lhs-rhs, x, opt]",
     }
-
+    messages = _BaseFinder.messages.copy()
     methods = {}
     summary_text = (
         "Looks for a root of an equation or a zero of a numerical expression."
@@ -1533,6 +1541,7 @@ class FindMinimum(_BaseFinder):
     """
 
     methods = {}
+    messages = _BaseFinder.messages.copy()
     summary_text = "local minimum optimization"
     try:
         from mathics.algorithm.optimizers import (
@@ -1580,6 +1589,7 @@ class FindMaximum(_BaseFinder):
     """
 
     methods = {}
+    messages = _BaseFinder.messages.copy()
     summary_text = "local maximum optimization"
     try:
         from mathics.algorithm.optimizers import native_local_optimizer_methods
@@ -2106,7 +2116,7 @@ class NIntegrate(Builtin):
 
         methods.update(scipy_nintegrate_methods)
         messages.update(scipy_nintegrate_messages)
-    except Exception as e:
+    except Exception:
         pass
 
     messages.update(
@@ -2164,12 +2174,9 @@ class NIntegrate(Builtin):
             evaluation.message("NIntegrate", "cmpint")
             return
 
-        intvars = ListExpression(*coords)
-        integrand = Expression(SymbolCompile, intvars, func).evaluate(evaluation)
+        integrand, cargs = expression_to_callable_and_args(func, coords, evaluation)
 
-        if len(integrand.elements) >= 3:
-            integrand = integrand.elements[2].cfunc
-        else:
+        if integrand is None:
             evaluation.message("inumer", func, domain)
             return
         results = []
@@ -2222,8 +2229,8 @@ class NIntegrate(Builtin):
                         (lambda u: a - z + z / u, lambda u: z * u ** (-2.0))
                     )
                 elif a.is_numeric(evaluation) and b.is_numeric(evaluation):
-                    a = apply_N(a, evaluation).value
-                    b = apply_N(b, evaluation).value
+                    a = eval_N(a, evaluation).value
+                    b = eval_N(b, evaluation).value
                     subdomain2.append([a, b])
                     coordtransform.append(None)
                 else:
@@ -2310,7 +2317,7 @@ def is_zero(
     Check if val is zero upto the precision and accuracy goals
     """
     if not isinstance(val, Number):
-        val = apply_N(val, evaluation)
+        val = eval_N(val, evaluation)
     if not isinstance(val, Number):
         return False
     if val.is_zero:
@@ -2322,5 +2329,5 @@ def is_zero(
     if acc_goal:
         eps_expr = eps_expr + Integer10 ** (-acc_goal) / abs(val)
     threeshold_expr = Expression(SymbolLog, eps_expr)
-    threeshold: Real = apply_N(threeshold_expr, evaluation)
+    threeshold: Real = eval_N(threeshold_expr, evaluation)
     return threeshold.to_python() > 0
