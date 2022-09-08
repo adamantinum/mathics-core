@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 List Functions - Miscellaneous
+
+Functions here will eventually get moved to more suitable subsections.
 """
 
 import heapq
@@ -33,7 +35,7 @@ from mathics.builtin.base import (
     Test,
 )
 
-from mathics.builtin.box.inout import RowBox
+from mathics.builtin.box.layout import RowBox
 
 from mathics.builtin.exceptions import (
     InvalidLevelspecError,
@@ -57,16 +59,14 @@ from mathics.core.atoms import (
     machine_precision,
     min_prec,
 )
+
 from mathics.core.attributes import (
-    flat,
     hold_all,
     locked,
-    one_identity,
     protected,
     read_protected,
 )
 from mathics.core.convert.expression import to_expression, to_mathics_list
-from mathics.core.convert.python import from_python
 from mathics.core.convert.sympy import from_sympy
 from mathics.core.evaluators import eval_N
 from mathics.core.expression import Expression, structure
@@ -117,8 +117,8 @@ class All(Predefined):
 class ContainsOnly(Builtin):
     """
     <dl>
-    <dt>'ContainsOnly[$list1$, $list2$]'
-        <dd>yields True if $list1$ contains only elements that appear in $list2$.
+      <dt>'ContainsOnly[$list1$, $list2$]'
+      <dd>yields True if $list1$ contains only elements that appear in $list2$.
     </dl>
 
     >> ContainsOnly[{b, a, a}, {a, b, c}]
@@ -212,12 +212,12 @@ class ContainsOnly(Builtin):
 class Delete(Builtin):
     """
     <dl>
-    <dt>'Delete[$expr$, $i$]'
-        <dd>deletes the element at position $i$ in $expr$. The position is counted from the end if $i$ is negative.
-    <dt>'Delete[$expr$, {$m$, $n$, ...}]'
-        <dd>deletes the element at position {$m$, $n$, ...}.
-    <dt>'Delete[$expr$, {{$m1$, $n1$, ...}, {$m2$, $n2$, ...}, ...}]'
-        <dd>deletes the elements at several positions.
+      <dt>'Delete[$expr$, $i$]'
+      <dd>deletes the element at position $i$ in $expr$. The position is counted from the end if $i$ is negative.
+      <dt>'Delete[$expr$, {$m$, $n$, ...}]'
+      <dd>deletes the element at position {$m$, $n$, ...}.
+      <dt>'Delete[$expr$, {{$m1$, $n1$, ...}, {$m2$, $n2$, ...}, ...}]'
+      <dd>deletes the elements at several positions.
     </dl>
 
     Delete the element at position 3:
@@ -354,8 +354,8 @@ class Delete(Builtin):
 class Failure(Builtin):
     """
     <dl>
-    <dt>Failure[$tag$, $assoc$]
-        <dd> represents a failure of a type indicated by $tag$, with details given by the association $assoc$.
+      <dt>Failure[$tag$, $assoc$]
+      <dd> represents a failure of a type indicated by $tag$, with details given by the association $assoc$.
     </dl>
     """
 
@@ -372,10 +372,10 @@ class Failure(Builtin):
 class Key(Builtin):
     """
     <dl>
-    <dt>Key[$key$]
-        <dd> represents a key used to access a value in an association.
-    <dt>Key[$key$][$assoc$]
-        <dd>
+      <dt>Key[$key$]
+      <dd> represents a key used to access a value in an association.
+      <dt>Key[$key$][$assoc$]
+      <dd>
     </dl>
     """
 
@@ -388,22 +388,22 @@ class Key(Builtin):
 class Level(Builtin):
     """
     <dl>
-    <dt>'Level[$expr$, $levelspec$]'
-    <dd>gives a list of all subexpressions of $expr$ at the
+      <dt>'Level[$expr$, $levelspec$]'
+      <dd>gives a list of all subexpressions of $expr$ at the
         level(s) specified by $levelspec$.
     </dl>
 
     Level uses standard level specifications:
 
     <dl>
-    <dt>$n$
-        <dd>levels 1 through $n$
-    <dt>'Infinity'
-        <dd>all levels from level 1
-    <dt>'{$n$}'
-        <dd>level $n$ only
-    <dt>'{$m$, $n$}'
-        <dd>levels $m$ through $n$
+      <dt>$n$
+      <dd>levels 1 through $n$
+      <dt>'Infinity'
+      <dd>all levels from level 1
+      <dt>'{$n$}'
+      <dd>level $n$ only
+      <dt>'{$m$, $n$}'
+      <dd>levels $m$ through $n$
     </dl>
 
     Level 0 corresponds to the whole expression.
@@ -465,8 +465,8 @@ class Level(Builtin):
 class LevelQ(Test):
     """
     <dl>
-    <dt>'LevelQ[$expr$]'
-        <dd>tests whether $expr$ is a valid level specification.
+      <dt>'LevelQ[$expr$]'
+      <dd>tests whether $expr$ is a valid level specification.
     </dl>
 
     >> LevelQ[2]
@@ -492,9 +492,9 @@ class LevelQ(Test):
 class List(Builtin):
     """
     <dl>
-    <dt>'List[$e1$, $e2$, ..., $ei$]'
-    <dt>'{$e1$, $e2$, ..., $ei$}'
-        <dd>represents a list containing the elements $e1$...$ei$.
+      <dt>'List[$e1$, $e2$, ..., $ei$]'
+      <dt>'{$e1$, $e2$, ..., $ei$}'
+      <dd>represents a list containing the elements $e1$...$ei$.
     </dl>
 
     'List' is the head of lists:
@@ -529,8 +529,8 @@ class List(Builtin):
 class ListQ(Test):
     """
     <dl>
-    <dt>'ListQ[$expr$]'
-        <dd>tests whether $expr$ is a 'List'.
+      <dt>'ListQ[$expr$]'
+      <dd>tests whether $expr$ is a 'List'.
     </dl>
 
     >> ListQ[{1, 2, 3}]
@@ -550,8 +550,8 @@ class ListQ(Test):
 class NotListQ(Test):
     """
     <dl>
-    <dt>'NotListQ[$expr$]'
-        <dd>returns true if $expr$ is not a list.
+      <dt>'NotListQ[$expr$]'
+      <dd>returns true if $expr$ is not a list.
     </dl>
     """
 
@@ -595,8 +595,8 @@ def list_boxes(items, f, evaluation, open=None, close=None):
 class None_(Predefined):
     """
     <dl>
-    <dt>'None'
-        <dd>is a possible value for 'Span' and 'Quiet'.
+      <dt>'None'
+      <dd>is a possible value for 'Span' and 'Quiet'.
     </dl>
     """
 
@@ -607,10 +607,10 @@ class None_(Predefined):
 class Split(Builtin):
     """
     <dl>
-    <dt>'Split[$list$]'
-        <dd>splits $list$ into collections of consecutive identical elements.
-    <dt>'Split[$list$, $test$]'
-        <dd>splits $list$ based on whether the function $test$ yields
+      <dt>'Split[$list$]'
+      <dd>splits $list$ into collections of consecutive identical elements.
+      <dt>'Split[$list$, $test$]'
+      <dd>splits $list$ based on whether the function $test$ yields
         'True' on consecutive elements.
     </dl>
 
@@ -677,8 +677,8 @@ class Split(Builtin):
 class SplitBy(Builtin):
     """
     <dl>
-    <dt>'SplitBy[$list$, $f$]'
-        <dd>splits $list$ into collections of consecutive elements
+      <dt>'SplitBy[$list$, $f$]'
+      <dd>splits $list$ into collections of consecutive elements
         that give the same result when $f$ is applied.
     </dl>
 
@@ -745,8 +745,8 @@ class SplitBy(Builtin):
 class LeafCount(Builtin):
     """
     <dl>
-    <dt>'LeafCount[$expr$]'
-        <dd>returns the total number of indivisible subexpressions in $expr$.
+      <dt>'LeafCount[$expr$]'
+      <dd>returns the total number of indivisible subexpressions in $expr$.
     </dl>
 
     >> LeafCount[1 + x + y^a]
@@ -805,67 +805,6 @@ class LeafCount(Builtin):
 
         walk_levels(expr[0], start=-1, stop=-1, heads=True, callback=callback)
         return Integer(len(elements))
-
-
-class Position(Builtin):
-    """
-    <dl>
-    <dt>'Position[$expr$, $patt$]'
-        <dd>returns the list of positions for which $expr$ matches $patt$.
-    <dt>'Position[$expr$, $patt$, $ls$]'
-        <dd>returns the positions on levels specified by levelspec $ls$.
-    </dl>
-
-    >> Position[{1, 2, 2, 1, 2, 3, 2}, 2]
-     = {{2}, {3}, {5}, {7}}
-
-    Find positions upto 3 levels deep
-    >> Position[{1 + Sin[x], x, (Tan[x] - y)^2}, x, 3]
-     = {{1, 2, 1}, {2}}
-
-    Find all powers of x
-    >> Position[{1 + x^2, x y ^ 2,  4 y,  x ^ z}, x^_]
-     = {{1, 2}, {4}}
-
-    Use Position as an operator
-    >> Position[_Integer][{1.5, 2, 2.5}]
-     = {{2}}
-    """
-
-    options = {"Heads": "True"}
-
-    rules = {
-        "Position[pattern_][expr_]": "Position[expr, pattern]",
-    }
-    summary_text = "positions of matching elements"
-
-    def apply_invalidlevel(self, patt, expr, ls, evaluation, options={}):
-        "Position[expr_, patt_, ls_, OptionsPattern[Position]]"
-
-        return evaluation.message("Position", "level", ls)
-
-    def apply_level(self, expr, patt, ls, evaluation, options={}):
-        """Position[expr_, patt_, Optional[Pattern[ls, _?LevelQ], {0, DirectedInfinity[1]}],
-        OptionsPattern[Position]]"""
-
-        try:
-            start, stop = python_levelspec(ls)
-        except InvalidLevelspecError:
-            return evaluation.message("Position", "level", ls)
-
-        from mathics.builtin.patterns import Matcher
-
-        match = Matcher(patt).match
-        result = []
-
-        def callback(level, pos):
-            if match(level, evaluation):
-                result.append(pos)
-            return level
-
-        heads = self.get_option(options, "Heads", evaluation) is SymbolTrue
-        walk_levels(expr, start, stop, heads=heads, callback=callback, include_pos=True)
-        return from_python(result)
 
 
 class _IterationFunction(Builtin):
@@ -1011,7 +950,7 @@ class _IterationFunction(Builtin):
             cont = Expression(compare_type, index, imax).evaluate(evaluation)
             if cont is SymbolFalse:
                 break
-            if not cont is SymbolTrue:
+            if cont is not SymbolTrue:
                 if self.throw_iterb:
                     evaluation.message(self.get_name(), "iterb")
                 return
@@ -1072,64 +1011,6 @@ class _IterationFunction(Builtin):
         return to_expression(name, to_expression(name, expr, *sequ), first)
 
 
-class Join(Builtin):
-    """
-    <dl>
-    <dt>'Join[$l1$, $l2$]'
-        <dd>concatenates the lists $l1$ and $l2$.
-    </dl>
-
-    'Join' concatenates lists:
-    >> Join[{a, b}, {c, d, e}]
-     = {a, b, c, d, e}
-    >> Join[{{a, b}, {c, d}}, {{1, 2}, {3, 4}}]
-     = {{a, b}, {c, d}, {1, 2}, {3, 4}}
-
-    The concatenated expressions may have any head:
-    >> Join[a + b, c + d, e + f]
-     = a + b + c + d + e + f
-
-    However, it must be the same for all expressions:
-    >> Join[a + b, c * d]
-     : Heads Plus and Times are expected to be the same.
-     = Join[a + b, c d]
-
-    #> Join[x, y]
-     = Join[x, y]
-    #> Join[x + y, z]
-     = Join[x + y, z]
-    #> Join[x + y, y z, a]
-     : Heads Plus and Times are expected to be the same.
-     = Join[x + y, y z, a]
-    #> Join[x, y + z, y z]
-     = Join[x, y + z, y z]
-    """
-
-    attributes = flat | one_identity | protected
-    summary_text = "join lists together at any level"
-
-    def apply(self, lists, evaluation):
-        "Join[lists___]"
-
-        result = []
-        head = None
-        sequence = lists.get_sequence()
-
-        for list in sequence:
-            if isinstance(list, Atom):
-                return
-            if head is not None and list.get_head() != head:
-                evaluation.message("Join", "heads", head, list.get_head())
-                return
-            head = list.get_head()
-            result.extend(list.elements)
-
-        if result:
-            return sequence[0].restructure(head, result, evaluation, deps=sequence)
-        else:
-            return ListExpression()
-
-
 class Insert(Builtin):
     """
     <dl>
@@ -1169,8 +1050,8 @@ def get_tuples(items):
 class IntersectingQ(Builtin):
     """
     <dl>
-    <dt>'IntersectingQ[$a$, $b$]'
-    <dd>gives True if there are any common elements in $a and $b, or False if $a and $b are disjoint.
+      <dt>'IntersectingQ[$a$, $b$]'
+      <dd>gives True if there are any common elements in $a and $b, or False if $a and $b are disjoint.
     </dl>
     """
 
@@ -1181,60 +1062,13 @@ class IntersectingQ(Builtin):
 class DisjointQ(Test):
     """
     <dl>
-    <dt>'DisjointQ[$a$, $b$]'
-    <dd>gives True if $a and $b are disjoint, or False if $a and $b have any common elements.
+      <dt>'DisjointQ[$a$, $b$]'
+      <dd>gives True if $a and $b are disjoint, or False if $a and $b have any common elements.
     </dl>
     """
 
     rules = {"DisjointQ[a_List, b_List]": "Not[IntersectingQ[a, b]]"}
     summary_text = "test whether two lists do not have common elements"
-
-
-class Fold(Builtin):
-    """
-    <dl>
-    <dt>'Fold[$f$, $x$, $list$]'
-        <dd>returns the result of iteratively applying the binary
-        operator $f$ to each element of $list$, starting with $x$.
-    <dt>'Fold[$f$, $list$]'
-        <dd>is equivalent to 'Fold[$f$, First[$list$], Rest[$list$]]'.
-    </dl>
-
-    >> Fold[Plus, 5, {1, 1, 1}]
-     = 8
-    >> Fold[f, 5, {1, 2, 3}]
-     = f[f[f[5, 1], 2], 3]
-    """
-
-    rules = {
-        "Fold[exp_, x_, head_]": "Module[{list = Level[head, 1], res = x, i = 1}, Do[res = exp[res, list[[i]]], {i, 1, Length[list]}]; res]",
-        "Fold[exp_, head_] /; Length[head] > 0": "Fold[exp, First[head], Rest[head]]",
-    }
-    summary_text = "iterative application of a binary operation over elements of a list"
-
-
-class FoldList(Builtin):
-    """
-    <dl>
-    <dt>'FoldList[$f$, $x$, $list$]'
-        <dd>returns a list starting with $x$, where each element is
-        the result of applying the binary operator $f$ to the previous
-        result and the next element of $list$.
-    <dt>'FoldList[$f$, $list$]'
-        <dd>is equivalent to 'FoldList[$f$, First[$list$], Rest[$list$]]'.
-    </dl>
-
-    >> FoldList[f, x, {1, 2, 3}]
-     = {x, f[x, 1], f[f[x, 1], 2], f[f[f[x, 1], 2], 3]}
-    >> FoldList[Times, {1, 2, 3}]
-     = {1, 2, 6}
-    """
-
-    rules = {
-        "FoldList[exp_, x_, head_]": "Module[{i = 1}, Head[head] @@ Prepend[Table[Fold[exp, x, Take[head, i]], {i, 1, Length[head]}], x]]",
-        "FoldList[exp_, head_]": "If[Length[head] == 0, head, FoldList[exp, First[head], Rest[head]]]",
-    }
-    summary_text = "list of the results of applying a binary operation interatively over elements of a list"
 
 
 class _NotRectangularException(Exception):
@@ -1382,8 +1216,8 @@ class _RankedTakeLargest(_RankedTake):
 class TakeLargestBy(_RankedTakeLargest):
     """
     <dl>
-    <dt>'TakeLargestBy[$list$, $f$, $n$]'
-        <dd>returns the a sorted list of the $n$ largest items in $list$
+      <dt>'TakeLargestBy[$list$, $f$, $n$]'
+      <dd>returns the a sorted list of the $n$ largest items in $list$
         using $f$ to retrieve the items' keys to compare them.
     </dl>
 
@@ -1406,8 +1240,8 @@ class TakeLargestBy(_RankedTakeLargest):
 class TakeSmallestBy(_RankedTakeSmallest):
     """
     <dl>
-    <dt>'TakeSmallestBy[$list$, $f$, $n$]'
-        <dd>returns the a sorted list of the $n$ smallest items in $list$
+      <dt>'TakeSmallestBy[$list$, $f$, $n$]'
+      <dd>returns the a sorted list of the $n$ smallest items in $list$
         using $f$ to retrieve the items' keys to compare them.
     </dl>
 
@@ -1619,19 +1453,19 @@ class _Pad(Builtin):
 class PadLeft(_Pad):
     """
     <dl>
-    <dt>'PadLeft[$list$, $n$]'
-        <dd>pads $list$ to length $n$ by adding 0 on the left.
-    <dt>'PadLeft[$list$, $n$, $x$]'
-        <dd>pads $list$ to length $n$ by adding $x$ on the left.
-    <dt>'PadLeft[$list$, {$n1$, $n2, ...}, $x$]'
-        <dd>pads $list$ to lengths $n1$, $n2$ at levels 1, 2, ... respectively by adding $x$ on the left.
-    <dt>'PadLeft[$list$, $n$, $x$, $m$]'
-        <dd>pads $list$ to length $n$ by adding $x$ on the left and adding a margin of $m$ on the right.
-    <dt>'PadLeft[$list$, $n$, $x$, {$m1$, $m2$, ...}]'
-        <dd>pads $list$ to length $n$ by adding $x$ on the left and adding margins of $m1$, $m2$, ...
+      <dt>'PadLeft[$list$, $n$]'
+      <dd>pads $list$ to length $n$ by adding 0 on the left.
+      <dt>'PadLeft[$list$, $n$, $x$]'
+      <dd>pads $list$ to length $n$ by adding $x$ on the left.
+      <dt>'PadLeft[$list$, {$n1$, $n2, ...}, $x$]'
+      <dd>pads $list$ to lengths $n1$, $n2$ at levels 1, 2, ... respectively by adding $x$ on the left.
+      <dt>'PadLeft[$list$, $n$, $x$, $m$]'
+      <dd>pads $list$ to length $n$ by adding $x$ on the left and adding a margin of $m$ on the right.
+      <dt>'PadLeft[$list$, $n$, $x$, {$m1$, $m2$, ...}]'
+      <dd>pads $list$ to length $n$ by adding $x$ on the left and adding margins of $m1$, $m2$, ...
          on levels 1, 2, ... on the right.
-    <dt>'PadLeft[$list$]'
-        <dd>turns the ragged list $list$ into a regular list by adding 0 on the left.
+      <dt>'PadLeft[$list$]'
+      <dd>turns the ragged list $list$ into a regular list by adding 0 on the left.
     </dl>
 
     >> PadLeft[{1, 2, 3}, 5]
@@ -1655,19 +1489,19 @@ class PadLeft(_Pad):
 class PadRight(_Pad):
     """
     <dl>
-    <dt>'PadRight[$list$, $n$]'
-        <dd>pads $list$ to length $n$ by adding 0 on the right.
-    <dt>'PadRight[$list$, $n$, $x$]'
-        <dd>pads $list$ to length $n$ by adding $x$ on the right.
-    <dt>'PadRight[$list$, {$n1$, $n2, ...}, $x$]'
-        <dd>pads $list$ to lengths $n1$, $n2$ at levels 1, 2, ... respectively by adding $x$ on the right.
-    <dt>'PadRight[$list$, $n$, $x$, $m$]'
-        <dd>pads $list$ to length $n$ by adding $x$ on the left and adding a margin of $m$ on the left.
-    <dt>'PadRight[$list$, $n$, $x$, {$m1$, $m2$, ...}]'
-        <dd>pads $list$ to length $n$ by adding $x$ on the right and adding margins of $m1$, $m2$, ...
+      <dt>'PadRight[$list$, $n$]'
+      <dd>pads $list$ to length $n$ by adding 0 on the right.
+      <dt>'PadRight[$list$, $n$, $x$]'
+      <dd>pads $list$ to length $n$ by adding $x$ on the right.
+      <dt>'PadRight[$list$, {$n1$, $n2, ...}, $x$]'
+      <dd>pads $list$ to lengths $n1$, $n2$ at levels 1, 2, ... respectively by adding $x$ on the right.
+      <dt>'PadRight[$list$, $n$, $x$, $m$]'
+      <dd>pads $list$ to length $n$ by adding $x$ on the left and adding a margin of $m$ on the left.
+      <dt>'PadRight[$list$, $n$, $x$, {$m1$, $m2$, ...}]'
+      <dd>pads $list$ to length $n$ by adding $x$ on the right and adding margins of $m1$, $m2$, ...
          on levels 1, 2, ... on the left.
-    <dt>'PadRight[$list$]'
-        <dd>turns the ragged list $list$ into a regular list by adding 0 on the right.
+      <dt>'PadRight[$list$]'
+      <dd>turns the ragged list $list$ into a regular list by adding 0 on the right.
     </dl>
 
     >> PadRight[{1, 2, 3}, 5]
@@ -1933,11 +1767,11 @@ class _Cluster(Builtin):
 class FindClusters(_Cluster):
     """
     <dl>
-    <dt>'FindClusters[$list$]'
-        <dd>returns a list of clusters formed from the elements of $list$. The number of cluster is determined
+      <dt>'FindClusters[$list$]'
+      <dd>returns a list of clusters formed from the elements of $list$. The number of cluster is determined
         automatically.
-    <dt>'FindClusters[$list$, $k$]'
-        <dd>returns a list of $k$ clusters formed from the elements of $list$.
+      <dt>'FindClusters[$list$, $k$]'
+      <dd>returns a list of $k$ clusters formed from the elements of $list$.
     </dl>
 
     >> FindClusters[{1, 2, 20, 10, 11, 40, 19, 42}]
@@ -2012,12 +1846,12 @@ class FindClusters(_Cluster):
 class ClusteringComponents(_Cluster):
     """
     <dl>
-    <dt>'ClusteringComponents[$list$]'
-        <dd>forms clusters from $list$ and returns a list of cluster indices, in which each
+      <dt>'ClusteringComponents[$list$]'
+      <dd>forms clusters from $list$ and returns a list of cluster indices, in which each
         element shows the index of the cluster in which the corresponding element in $list$
         ended up.
-    <dt>'ClusteringComponents[$list$, $k$]'
-        <dd>forms $k$ clusters from $list$ and returns a list of cluster indices, in which
+      <dt>'ClusteringComponents[$list$, $k$]'
+      <dd>forms $k$ clusters from $list$ and returns a list of cluster indices, in which
         each element shows the index of the cluster in which the corresponding element in
         $list$ ended up.
     </dl>

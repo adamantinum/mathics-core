@@ -12,6 +12,7 @@ from sympy import Q, ask
 
 from mathics.builtin.base import Builtin, Test, SympyFunction
 from mathics.core.atoms import Integer
+from mathics.core.convert.python import from_bool
 from mathics.core.expression import Expression
 from mathics.core.convert.expression import to_mathics_list
 from mathics.core.symbols import Symbol, SymbolFalse, SymbolTrue
@@ -24,6 +25,7 @@ from mathics.core.attributes import (
     one_identity as A_ONE_IDENTITY,
     orderless as A_ORDERLESS,
     protected as A_PROTECTED,
+    read_protected as A_READ_PROTECTED,
 )
 
 SymbolQuotient = Symbol("Quotient")
@@ -46,11 +48,12 @@ class CompositeQ(Builtin):
      = {False, False, False, False, True, False, True, False, True, True, True}
     """
 
+    attributes = A_LISTABLE | A_PROTECTED
     summary_text = "test whether a number is composite"
 
     def apply(self, n, evaluation):
         "CompositeQ[n_Integer]"
-        return SymbolTrue if ask(Q.composite(n.value)) else SymbolFalse
+        return from_bool(ask(Q.composite(n.value)))
 
 
 class CoprimeQ(Builtin):
@@ -119,6 +122,7 @@ class Divisible(Builtin):
      = False
     """
 
+    attributes = A_LISTABLE | A_PROTECTED | A_READ_PROTECTED
     rules = {
         "Divisible[n_, m_]": "Mod[n, m] == 0",
     }
@@ -245,8 +249,7 @@ class Mod(Builtin):
 
 class ModularInverse(SympyFunction):
     """
-    Modular multiplicative inverse.
-    See <url>https://en.wikipedia.org/wiki/Modular_multiplicative_inverse</url>.
+    <url>:Modular multiplicative inverse: https://en.wikipedia.org/wiki/Modular_multiplicative_inverse</url> (<url>:SymPy: https://docs.sympy.org/latest/modules/core.html#sympy.core.numbers.mod_inverse</url>, <url>:WMA: https://reference.wolfram.com/language/ref/ModularInverse.html</url>)
 
     <dl>
       <dt>'ModularInverse[$k$, $n$]'
@@ -269,7 +272,7 @@ class ModularInverse(SympyFunction):
     #> Clear[k, n]
     """
 
-    attributes = A_NUMERIC_FUNCTION | A_PROTECTED
+    attributes = A_PROTECTED
     summary_text = "returns the modular inverse $k^(-1)$ mod $n$"
     sympy_name = "mod_inverse"
 

@@ -4,7 +4,7 @@ from test.helper import check_evaluation, session
 
 
 @pytest.mark.parametrize(
-    ("str_expr", "str_expected", "fail_msg"),
+    ("str_expr", "str_expected", "assert_fail_message"),
     [
         # Equal (==)
         (
@@ -99,12 +99,17 @@ from test.helper import check_evaluation, session
         ("g[1]!=g[1]==g[2]", "False", "This evaluates first the inequality"),
     ],
 )
-def test_compare_many_members(str_expr: str, str_expected: str, fail_msg: str):
+def test_compare_many_members(
+    str_expr: str, str_expected: str, assert_fail_message: str
+):
     #    if str_expr is None:
     #        reset_session()
     result = session.evaluate(f"ToString[{str_expr}]").value
     print("result:", result)
-    assert result == str_expected  # , fail_msg
+    if assert_fail_message:
+        assert result == str_expected, assert_fail_message
+    else:
+        assert result == str_expected
 
 
 # SameQ test
@@ -209,12 +214,12 @@ def test_unsameq(str_expr, str_expected):
 #     tests.append(newtest)
 
 tests1 = [
-    ("Sqrt[I] Infinity", "2 + 3 a", '"-1 ^ (1 / 4) Infinity == 2 + 3 a"'),
-    ("a", "Sqrt[I] Infinity", '"a == -1 ^ (1 / 4) Infinity"'),
+    ("Sqrt[I] Infinity", "2 + 3 a", '"(-1) ^ (1 / 4) Infinity == 2 + 3 a"'),
+    ("a", "Sqrt[I] Infinity", '"a == (-1) ^ (1 / 4) Infinity"'),
     ('"a"', "2 + 3 a", '"a == 2 + 3 a"'),
     ('"a"', "Infinity", '"a == Infinity"'),
     ('"a"', "-Infinity", '"a == -Infinity"'),
-    ('"a"', "Sqrt[I] Infinity", '"a == -1 ^ (1 / 4) Infinity"'),
+    ('"a"', "Sqrt[I] Infinity", '"a == (-1) ^ (1 / 4) Infinity"'),
     ('"a"', "a", '"a == a"'),
     ("Graphics[{Disk[{0,0},1]}]", "2 + 3 a", '"-Graphics- == 2 + 3 a"'),
     ("Graphics[{Disk[{0,0},1]}]", "Infinity", '"-Graphics- == Infinity"'),
@@ -222,7 +227,7 @@ tests1 = [
     (
         "Graphics[{Disk[{0,0},1]}]",
         "Sqrt[I] Infinity",
-        '"-Graphics- == -1 ^ (1 / 4) Infinity"',
+        '"-Graphics- == (-1) ^ (1 / 4) Infinity"',
     ),
     ("Graphics[{Disk[{0,0},1]}]", "a", '"-Graphics- == a"'),
     ("Graphics[{Disk[{0,0},1]}]", '"a"', '"-Graphics- == a"'),
@@ -249,7 +254,7 @@ tests1 = [
     ('"1 / 4"', "2 + 3 a", '"1 / 4 == 2 + 3 a"'),
     ('"1 / 4"', "Infinity", '"1 / 4 == Infinity"'),
     ('"1 / 4"', "-Infinity", '"1 / 4 == -Infinity"'),
-    ('"1 / 4"', "Sqrt[I] Infinity", '"1 / 4 == -1 ^ (1 / 4) Infinity"'),
+    ('"1 / 4"', "Sqrt[I] Infinity", '"1 / 4 == (-1) ^ (1 / 4) Infinity"'),
     ('"1 / 4"', "a", '"1 / 4 == a"'),
     ("Sqrt[2]", '"1 / 4"', '"Sqrt[2] == 1 / 4"'),
     ("BesselJ[0, 2]", '"1 / 4"', '"BesselJ[0, 2] == 1 / 4"'),
@@ -272,7 +277,7 @@ tests1 = [
     (
         'TestFunction["Tengo una vaca lechera"]',
         "Sqrt[I] Infinity",
-        '"TestFunction[Tengo una vaca lechera] == -1 ^ (1 / 4) Infinity"',
+        '"TestFunction[Tengo una vaca lechera] == (-1) ^ (1 / 4) Infinity"',
     ),
     (
         'TestFunction["Tengo una vaca lechera"]',
@@ -352,7 +357,7 @@ tests1 = [
     (
         "Compile[{x}, Sqrt[x]]",
         "Sqrt[I] Infinity",
-        '"CompiledFunction[{x}, Sqrt[x], -PythonizedCode-] == -1 ^ (1 / 4) Infinity"',
+        '"CompiledFunction[{x}, Sqrt[x], -PythonizedCode-] == (-1) ^ (1 / 4) Infinity"',
     ),
     (
         "Compile[{x}, Sqrt[x]]",

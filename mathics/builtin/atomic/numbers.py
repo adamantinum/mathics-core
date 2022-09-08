@@ -1,8 +1,8 @@
 # cython: language_level=3
 # -*- coding: utf-8 -*-
 
-# Note: docstring is flowed in documentation. Line breaks in the docstring will appear in the
-# printed output, so be carful not to add then mid-sentence.
+# Note: docstring is not flowed in documentation. Line breaks in the docstring will appear in the
+# printed output, so be careful not to add them mid-sentence.
 
 """
 Representation of Numbers
@@ -28,28 +28,21 @@ from mathics.core.atoms import (
     Number,
     Rational,
     Real,
-    SymbolDivide,
 )
 from mathics.core.attributes import (
     listable as A_LISTABLE,
     protected as A_PROTECTED,
 )
-from mathics.core.convert.expression import to_mathics_list
-from mathics.core.convert.python import from_python
+from mathics.core.convert.python import from_bool, from_python
 from mathics.core.evaluators import eval_N
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
 from mathics.core.number import (
     dps,
-    convert_int_to_digit_list,
     machine_precision,
     machine_epsilon,
 )
-from mathics.core.symbols import (
-    Symbol,
-    SymbolFalse,
-    SymbolTrue,
-)
+from mathics.core.symbols import Symbol, SymbolDivide
 from mathics.core.systemsymbols import (
     SymbolIndeterminate,
     SymbolInfinity,
@@ -177,89 +170,6 @@ class ExactNumberQ(Test):
 
     def test(self, expr):
         return isinstance(expr, Number) and not expr.is_inexact()
-
-
-class IntegerDigits(Builtin):
-    """
-    <dl>
-    <dt>'IntegerDigits[$n$]'
-        <dd>returns a list of the base-10 digits in the integer $n$.
-    <dt>'IntegerDigits[$n$, $base$]'
-        <dd>returns a list of the base-$base$ digits in $n$.
-    <dt>'IntegerDigits[$n$, $base$, $length$]'
-        <dd>returns a list of length $length$, truncating or padding
-        with zeroes on the left as necessary.
-    </dl>
-
-    >> IntegerDigits[76543]
-     = {7, 6, 5, 4, 3}
-
-    The sign of $n$ is discarded:
-    >> IntegerDigits[-76543]
-     = {7, 6, 5, 4, 3}
-
-    >> IntegerDigits[15, 16]
-     = {15}
-    >> IntegerDigits[1234, 16]
-     = {4, 13, 2}
-    >> IntegerDigits[1234, 10, 5]
-     = {0, 1, 2, 3, 4}
-
-    #> IntegerDigits[1000, 10]
-     = {1, 0, 0, 0}
-
-    #> IntegerDigits[0]
-     = {0}
-    """
-
-    attributes = A_LISTABLE | A_PROTECTED
-
-    messages = {
-        "int": "Integer expected at position 1 in `1`",
-        "ibase": "Base `1` is not an integer greater than 1.",
-    }
-
-    rules = {
-        "IntegerDigits[n_]": "IntegerDigits[n, 10]",
-    }
-
-    summary_text = "digits of an integer in any base"
-
-    def apply_len(self, n, base, length, evaluation):
-        "IntegerDigits[n_, base_, length_]"
-
-        if not (isinstance(length, Integer) and length.get_int_value() >= 0):
-            return evaluation.message("IntegerDigits", "intnn")
-
-        return self.apply(n, base, evaluation, nr_elements=length.get_int_value())
-
-    def apply(self, n, base, evaluation, nr_elements=None):
-        "IntegerDigits[n_, base_]"
-
-        if not (isinstance(n, Integer)):
-            return evaluation.message(
-                "IntegerDigits", "int", Expression(SymbolIntegerDigits, n, base)
-            )
-
-        if not (isinstance(base, Integer) and base.get_int_value() > 1):
-            return evaluation.message("IntegerDigits", "ibase", base)
-
-        if nr_elements == 0:
-            # trivial case: we don't want any digits
-            return ListExpression()
-
-        # Note: above we checked that n and b are Integers, so we can use x.value.
-        digits = convert_int_to_digit_list(n.value, base.value)
-
-        if nr_elements is not None:
-            if len(digits) >= nr_elements:
-                # Truncate, preserving the digits on the right
-                digits = digits[-nr_elements:]
-            else:
-                # Pad with zeroes
-                digits = [0] * (nr_elements - len(digits)) + digits
-
-        return to_mathics_list(*digits, element_conversion_fn=Integer)
 
 
 class IntegerExponent(Builtin):
@@ -801,8 +711,8 @@ class MaxPrecision(Predefined):
 class MachineEpsilon_(Predefined):
     """
     <dl>
-    <dt>'$MachineEpsilon'
-        <dd>is the distance between '1.0' and the next
+      <dt>'$MachineEpsilon'
+      <dd>is the distance between '1.0' and the next
             nearest representable machine-precision number.
     </dl>
 
@@ -928,8 +838,8 @@ class MinPrecision(Builtin):
 class NumericQ(Builtin):
     """
     <dl>
-    <dt>'NumericQ[$expr$]'
-        <dd>tests whether $expr$ represents a numeric quantity.
+      <dt>'NumericQ[$expr$]'
+      <dd>tests whether $expr$ represents a numeric quantity.
     </dl>
 
     >> NumericQ[2]
@@ -966,18 +876,18 @@ class NumericQ(Builtin):
         "argx": "NumericQ called with `1` arguments; 1 argument is expected.",
         "set": "Cannot set `1` to `2`; the lhs argument must be a symbol and the rhs must be True or False.",
     }
-    summary_text = "test whether an exprssion is a number"
+    summary_text = "test whether an expression is a number"
 
     def apply(self, expr, evaluation):
         "NumericQ[expr_]"
-        return SymbolTrue if expr.is_numeric(evaluation) else SymbolFalse
+        return from_bool(expr.is_numeric(evaluation))
 
 
 class Precision(Builtin):
     """
     <dl>
-    <dt>'Precision[$expr$]'
-        <dd>examines the number of significant digits of $expr$.
+      <dt>'Precision[$expr$]'
+      <dd>examines the number of significant digits of $expr$.
     </dl>
     This is rather a proof-of-concept than a full implementation.
     Precision of compound expression is not supported yet.

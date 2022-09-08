@@ -279,9 +279,9 @@ class Atom(BaseElement):
     #        1/0
     #        return None if stop_on_error else {}
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
-            return [0, 0, 1, 1, 0, 0, 0, 1]
+            return (0, 0, 1, 1, 0, 0, 0, 1)
         else:
             raise NotImplementedError
 
@@ -397,10 +397,10 @@ class Symbol(Atom, NumericOperators, EvalMixin):
     def __str__(self) -> str:
         return self.name
 
-    def atom_to_boxes(self, f, evaluation) -> "_BoxedString":
-        from mathics.builtin.box.inout import _BoxedString
+    def atom_to_boxes(self, f, evaluation) -> "String":
+        from mathics.core.atoms import String
 
-        return _BoxedString(evaluation.definitions.shorten_name(self.name))
+        return String(evaluation.definitions.shorten_name(self.name))
 
     def default_format(self, evaluation, form) -> str:
         return self.name
@@ -448,7 +448,7 @@ class Symbol(Atom, NumericOperators, EvalMixin):
     def get_head(self) -> "Symbol":
         return Symbol("Symbol")
 
-    def get_head_name(self):
+    def get_head_name(self) -> str:
         return "System`Symbol"
 
     def get_option_values(self, evaluation, allow_symbols=False, stop_on_error=True):
@@ -515,18 +515,18 @@ class Symbol(Atom, NumericOperators, EvalMixin):
     def get_name(self) -> str:
         return self.name
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             return super(Symbol, self).get_sort_key(True)
         else:
-            return [
+            return (
                 1 if self.is_numeric() else 2,
                 2,
                 Monomial({self.name: 1}),
                 0,
                 self.name,
                 1,
-            ]
+            )
 
     def user_hash(self, update) -> None:
         update(b"System`Symbol>" + self.name.encode("utf8"))
@@ -667,27 +667,23 @@ SymbolFullForm = Symbol("FullForm")
 SymbolGraphics = Symbol("System`Graphics")
 SymbolGraphics3D = Symbol("System`Graphics3D")
 SymbolHoldForm = Symbol("System`HoldForm")
-SymbolInputForm = Symbol("InputForm")
 SymbolMachinePrecision = Symbol("MachinePrecision")
 SymbolMakeBoxes = Symbol("System`MakeBoxes")
-SymbolMathMLForm = Symbol("MathMLForm")
 SymbolMaxPrecision = Symbol("$MaxPrecision")
 SymbolMinPrecision = Symbol("$MinPrecision")
 SymbolN = Symbol("System`N")
 SymbolNull = Symbol("System`Null")
 SymbolNumberForm = Symbol("System`NumberForm")
-SymbolOutputForm = Symbol("OutputForm")
 SymbolPlus = Symbol("Plus")
 SymbolPostfix = Symbol("System`Postfix")
 SymbolPower = Symbol("Power")
 SymbolRepeated = Symbol("System`Repeated")
 SymbolRepeatedNull = Symbol("System`RepeatedNull")
 SymbolSequence = Symbol("System`Sequence")
-SymbolStandardForm = Symbol("StandardForm")
 SymbolUpSet = Symbol("UpSet")
 SymbolTeXForm = Symbol("TeXForm")
 SymbolTimes = Symbol("Times")
-SymbolTraditionalForm = Symbol("TraditionalForm")
+
 
 # NumericOperators uses some of the Symbols above.
 class NumericOperators:

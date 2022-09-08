@@ -21,7 +21,7 @@ mathics.pdf: mathics.tex documentation.tex logo-text-nodrop.pdf logo-heptatom.pd
 
 #: File containing version information
 version-info.tex: doc2latex.py
-	$(PYTHON) doc2latex.py
+	$(PYTHON) doc2latex.py && $(BASH) ./sed-hack.sh
 
 #: Build test PDF
 mathics-test.pdf: mathics-test.tex testing.tex

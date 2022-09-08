@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
+import reprlib
 from typing import Optional, Tuple
 
 from mathics.core.element import ElementsProperties
 from mathics.core.expression import Expression
-from mathics.core.symbols import EvalMixin, SymbolList
+from mathics.core.symbols import EvalMixin, Symbol, SymbolList
 
 
 class ListExpression(Expression):
@@ -21,7 +22,10 @@ class ListExpression(Expression):
     """
 
     def __init__(
-        self, *elements, elements_properties: Optional[ElementsProperties] = None
+        self,
+        *elements,
+        elements_properties: Optional[ElementsProperties] = None,
+        is_literal: Optional[bool] = False,
     ):
         self.options = None
         self.pattern_sequence = False
@@ -34,20 +38,32 @@ class ListExpression(Expression):
         #          from trepan.api import debug; debug()
 
         self._elements = elements
-        self._is_literal = False
+        # TODO: consider adding _is_literal as an elements property.
+        self._is_literal = (
+            is_literal if is_literal else all(e.is_literal for e in elements)
+        )
         self.python_list = None
         self.elements_properties = elements_properties
 
         # FIXME: get rid of this junk
         self._sequences = None
         self._cache = None
-        # comment @mmatera: this cache should be useful in BoxConstruct, but not
-        # here...
-        self._format_cache = None
 
-    # Add this when it is safe to do.
+    def __getitem__(self, index: int):
+        """
+        Allows ListExpression elements to accessed via [], e.g.
+        ListExpression[Integer1, Integer0][0] == Integer1
+        """
+        return self._elements[index]
+
     def __repr__(self) -> str:
-        return "<ListExpression: %s>" % self
+        """(reprlib.repr)-limited display or ListExpression"""
+        list_data = reprlib.repr(self._elements)
+        return f"<ListExpression: {list_data}>"
+
+    def __str__(self) -> str:
+        """str() representation of ListExpression. May be longer than repr()"""
+        return f"<ListExpression: {self._elements}>"
 
     # @timeit
     def evaluate_elements(self, evaluation):
@@ -111,6 +127,14 @@ class ListExpression(Expression):
             return new, False
         return self, False
 
+    def set_head(self, head: Symbol):
+        """
+        Change the Head of an Expression.
+        Unless this is a ListExpression, this is forbidden here.
+        """
+        if head != SymbolList:
+            raise TypeError("Attempt to modify the Head of a ListExpression")
+
     def shallow_copy(self) -> "ListExpression":
         """
         For an Expression this does something with its cache.
@@ -126,5 +150,4 @@ class ListExpression(Expression):
         expr.options = self.options
         expr.original = self
         expr._sequences = self._sequences
-        expr._format_cache = self._format_cache
         return expr

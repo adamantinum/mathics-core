@@ -2,11 +2,9 @@
 """
 Combinatorial Functions
 
-Combinatorics is an area of mathematics primarily concerned with counting, both as a means and an end in obtaining results, and certain properties of finite structures.
+<url>:Combinatorics: https://en.wikipedia.org/wiki/Combinatorics</url> is an area of mathematics primarily concerned with counting, both as a means and an end in obtaining results, and certain properties of finite structures.
 
 It is closely related to many other areas of Mathematics and has many applications ranging from logic to statistical physics, from evolutionary biology to computer science, etc.
-
-See also <url>https://en.wikipedia.org/wiki/Combinatorics</url>.
 """
 
 
@@ -19,6 +17,7 @@ from mathics.core.attributes import (
     numeric_function as A_NUMERIC_FUNCTION,
     orderless as A_ORDERLESS,
     protected as A_PROTECTED,
+    read_protected as A_READ_PROTECTED,
 )
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
@@ -85,7 +84,7 @@ class _NoBoolVector(Exception):
 
 class Binomial(_MPMathFunction):
     """
-    Binomcial Coefficient. See <url>https://en.wikipedia.org/wiki/Binomial_coefficient</url>.
+    <url>:Binomial Coefficient: https://en.wikipedia.org/wiki/Binomial_coefficient</url> (<url>:SymPy: https://docs.sympy.org/latest/modules/functions/combinatorial.html#binomial</url>, <url>:WMA: https://reference.wolfram.com/language/ref/Binomial.html</url>)
 
     <dl>
       <dt>'Binomial[$n$, $k$]'
@@ -120,7 +119,7 @@ class Binomial(_MPMathFunction):
 
 class CatalanNumber(SympyFunction):
     """
-    Catalan Number. See <url>https://en.wikipedia.org/wiki/Catalan_number</url>.
+    <url>:Catalan Number: https://en.wikipedia.org/wiki/Catalan_number</url> (<url>:SymPy: https://docs.sympy.org/latest/modules/functions/combinatorial.html#sympy.functions.combinatorial.numbers.catalan</url>, <url>:WMA: https://reference.wolfram.com/language/ref/CatalanNumber.html</url>)
 
     <dl>
       <dt>'CatalanNumber[$n$]'
@@ -132,7 +131,7 @@ class CatalanNumber(SympyFunction):
      = {1, 2, 5, 14, 42}
     """
 
-    attributes = A_NUMERIC_FUNCTION | A_PROTECTED
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED | A_READ_PROTECTED
 
     summary_text = "catalan number"
     sympy_name = "catalan"
@@ -146,7 +145,7 @@ class CatalanNumber(SympyFunction):
 
 class DiceDissimilarity(_BooleanDissimilarity):
     r"""
-    Sørensen–Dice coefficient. See <url>https://en.wikipedia.org/wiki/S%C3%B8rensen%E2%80%93Dice_coefficient<url>.
+    <url>:Sørensen–Dice coefficient: https://en.wikipedia.org/wiki/S%C3%B8rensen%E2%80%93Dice_coefficient</url> (<url>:Sympy: https://docs.scipy.org/doc/scipy/search.html</url>, <url>:DiceDissimilarity: https://reference.wolfram.com/language/ref/DiceDissimilarity.html</url>)
     <dl>
       <dt>'DiceDissimilarity[$u$, $v$]'
       <dd>returns the Dice dissimilarity between the two boolean 1-D lists $u$ and $v$,
@@ -168,7 +167,7 @@ class DiceDissimilarity(_BooleanDissimilarity):
 
 class JaccardDissimilarity(_BooleanDissimilarity):
     """
-    Jaccard index. See <url>https://en.wikipedia.org/wiki/Jaccard_index</url>.
+    <url>:Jaccard index: https://en.wikipedia.org/wiki/Jaccard_index</url> (<url>:SciPy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.jaccard.html</url>, <url>:WMA: https://reference.wolfram.com/language/ref/JaccardDissimilarity.html</url>)
     <dl>
       <dt>'JaccardDissimilarity[$u$, $v$]'
       <dd>returns the Jaccard-Needham dissimilarity between the two boolean 1-D lists $u$ and $v$, which is defined as (c_tf + c_ft) / (c_tt + c_ft + c_tf), where $n$ is len($u$) and c_ij is the number of occurrences of $u$[k]=i and $v$[k]=j for $k$ < $n$.
@@ -181,6 +180,7 @@ class JaccardDissimilarity(_BooleanDissimilarity):
     summary_text = "Jaccard dissimilarity"
 
     def _compute(self, n, c_ff, c_ft, c_tf, c_tt):
+
         return Expression(
             SymbolDivide, Integer(c_tf + c_ft), Integer(c_tt + c_ft + c_tf)
         )
@@ -205,7 +205,7 @@ class MatchingDissimilarity(_BooleanDissimilarity):
 
 class Multinomial(Builtin):
     """
-    Multinomial distribution. See <url>https://en.wikipedia.org/wiki/Multinomial_distribution</url>.
+    <url>:Multinomial distribution: https://en.wikipedia.org/wiki/Multinomial_distribution</url> (<url>:WMA: https://reference.wolfram.com/language/ref/Multinomial.html</url>)
     <dl>
       <dt>'Multinomial[$n1$, $n2$, ...]'
       <dd>gives the multinomial coefficient '($n1$+$n2$+...)!/($n1$!$n2$!...)'.

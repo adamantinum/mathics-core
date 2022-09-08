@@ -42,13 +42,12 @@ from mathics.core.atoms import (
     MachineReal,
     Rational,
     Real,
-    SymbolDivide,
 )
 from mathics.core.convert.expression import to_mathics_list
 from mathics.core.convert.python import from_python
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
-from mathics.core.symbols import Symbol, SymbolNull, SymbolTrue
+from mathics.core.symbols import Symbol, SymbolDivide, SymbolNull, SymbolTrue
 from mathics.core.systemsymbols import SymbolRule, SymbolSimplify
 
 SymbolColorQuantize = Symbol("ColorQuantize")
@@ -2079,8 +2078,7 @@ class Image(Atom):
     def default_format(self, evaluation, form):
         return "-Image-"
 
-    # FIXME: return type should be a specific kind of Tuple, not a list.
-    def get_sort_key(self, pattern_sort=False) -> list:
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             # If pattern_sort=True, returns the sort key that matches to an Atom.
             return super(Image, self).get_sort_key(True)
@@ -2089,7 +2087,7 @@ class Image(Atom):
             # but with a `2` instead of `1` in the 5th position,
             # and adding two extra fields: the length in the 5th position,
             # and a hash in the 6th place.
-            return [1, 3, SymbolImage, tuple(), 2, len(self.pixels), hash(self)]
+            return (1, 3, SymbolImage, len(self.pixels), tuple(), 2, hash(self))
 
     def sameQ(self, other) -> bool:
         """Mathics SameQ"""

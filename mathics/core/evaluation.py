@@ -38,11 +38,14 @@ from mathics.core.systemsymbols import (
     SymbolFullForm,
     SymbolHold,
     SymbolIn,
+    SymbolMathMLForm,
     SymbolMessageName,
     SymbolOut,
+    SymbolOutputForm,
     SymbolOverflow,
     SymbolStandardForm,
     SymbolStringForm,
+    SymbolTeXForm,
     SymbolThrow,
 )
 
@@ -441,6 +444,8 @@ class Evaluation:
         self.stopped = True
 
     def format_output(self, expr, format=None):
+        from mathics.core.formatter import format_element
+
         if format is None:
             format = self.format
 
@@ -450,13 +455,15 @@ class Evaluation:
         from mathics.core.expression import Expression, BoxError
 
         if format == "text":
-            result = expr.format(self, "System`OutputForm")
+            result = format_element(expr, self, SymbolOutputForm)
         elif format == "xml":
-            result = Expression(SymbolStandardForm, expr).format(
-                self, "System`MathMLForm"
+            result = format_element(
+                Expression(SymbolStandardForm, expr), self, SymbolMathMLForm
             )
-        elif format == "tex":
-            result = Expression(SymbolStandardForm, expr).format(self, "System`TeXForm")
+        elif format == "latex":
+            result = format_element(
+                Expression(SymbolStandardForm, expr), self, SymbolTeXForm
+            )
         elif format == "unformatted":
             self.exc_result = None
             return expr
@@ -493,12 +500,12 @@ class Evaluation:
             return []
         return value.elements
 
-    def message(self, symbol, tag, *args) -> None:
+    def message(self, symbol_name: str, tag, *args) -> None:
         from mathics.core.expression import Expression
 
         # Allow evaluation.message('MyBuiltin', ...) (assume
         # System`MyBuiltin)
-        symbol = ensure_context(symbol)
+        symbol = ensure_context(symbol_name)
         quiet_messages = set(self.get_quiet_messages())
 
         pattern = Expression(SymbolMessageName, Symbol(symbol), String(tag))

@@ -80,7 +80,9 @@ PYTHON_RE = re.compile(r"(?s)<python>(.*?)</python>")
 LATEX_CHAR_RE = re.compile(r"(?<!\\)(\^)")
 
 QUOTATIONS_RE = re.compile(r"\"([\w\s,]*?)\"")
-HYPERTEXT_RE = re.compile(r"(?s)<(?P<tag>em|url)>(?P<content>.*?)</(?P=tag)>")
+HYPERTEXT_RE = re.compile(
+    r"(?s)<(?P<tag>em|url)>(\s*:(?P<text>.*?):\s*)?(?P<content>.*?)</(?P=tag)>"
+)
 
 OUTSIDE_ASY_RE = re.compile(r"(?s)((?:^|\\end\{asy\}).*?(?:$|\\begin\{asy\}))")
 LATEX_TEXT_RE = re.compile(
@@ -362,6 +364,7 @@ def escape_latex(text):
             ("\u03b8", r"$\theta$"),
             ("\u03bc", r"$\mu$"),
             ("\u03c0", r"$\pi$"),
+            ("\u03d5", r"$\phi$"),
             ("\u2107", r"$\mathrm{e}$"),
             ("\u222b", r"\int"),
             ("\u2243", r"$\simeq$"),
@@ -422,7 +425,11 @@ def escape_latex(text):
         if tag == "em":
             return r"\emph{%s}" % content
         elif tag == "url":
-            return "\\url{%s}" % content
+            text = match.group("text")
+            if text is None:
+                return "\\url{%s}" % content
+            else:
+                return "\\href{%s}{%s}" % (content, text)
 
     text = QUOTATIONS_RE.sub(repl_quotation, text)
     text = HYPERTEXT_RE.sub(repl_hypertext, text)
@@ -1170,10 +1177,14 @@ class DocPart:
         `output` is not used here but passed along to the bottom-most
         level in getting expected test results.
         """
+        if self.is_reference:
+            chapter_fn = sorted_chapters
+        else:
+            chapter_fn = lambda x: x
         result = "\n\n\\part{%s}\n\n" % escape_latex(self.title) + (
             "\n\n".join(
                 chapter.latex(doc_data, quiet, filter_sections=filter_sections)
-                for chapter in sorted_chapters(self.chapters)
+                for chapter in chapter_fn(self.chapters)
                 if not filter_chapters or chapter.title in filter_chapters
             )
         )

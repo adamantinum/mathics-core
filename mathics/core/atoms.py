@@ -8,11 +8,11 @@ import re
 import sympy
 import typing
 
-from typing import Any, Optional
 from functools import lru_cache
+from typing import Any, Optional
 
 
-from mathics.core.element import ImmutableValueMixin
+from mathics.core.element import ImmutableValueMixin, BoxElementMixin
 from mathics.core.number import (
     dps,
     prec,
@@ -24,26 +24,18 @@ from mathics.core.symbols import (
     Atom,
     NumericOperators,
     Symbol,
-    SymbolDivide,
-    SymbolFullForm,
-    SymbolHoldForm,
     SymbolNull,
-    SymbolPlus,
-    SymbolTimes,
     SymbolTrue,
     system_symbols,
 )
-from mathics.core.systemsymbols import (
-    SymbolComplex,
-    SymbolMinus,
-    SymbolRational,
-)
+from mathics.core.systemsymbols import SymbolInfinity
 
 # Imperical number that seems to work.
 # We have to be able to match mpmath values with sympy values
 COMPARE_PREC = 50
 
 SymbolI = Symbol("I")
+SymbolString = Symbol("String")
 
 SYSTEM_SYMBOLS_INPUT_OR_FULL_FORM = system_symbols("InputForm", "FullForm")
 
@@ -70,7 +62,7 @@ def _ExponentFunction(value):
 
 
 def _NumberFormat(man, base, exp, options):
-    from mathics.builtin.box.inout import RowBox, _BoxedString, SuperscriptBox
+    from mathics.builtin.box.layout import RowBox, SuperscriptBox
 
     if exp.get_string_value():
         if options["_Form"] in (
@@ -78,11 +70,11 @@ def _NumberFormat(man, base, exp, options):
             "System`StandardForm",
             "System`FullForm",
         ):
-            return RowBox(man, _BoxedString("*^"), exp)
+            return RowBox(man, String("*^"), exp)
         else:
             return RowBox(
                 man,
-                _BoxedString(options["NumberMultiplier"]),
+                String(options["NumberMultiplier"]),
                 SuperscriptBox(base, exp),
             )
     else:
@@ -106,6 +98,7 @@ class Integer(Number):
     value: int
     class_head_name = "System`Integer"
 
+    # Think about: Do we ever need this on a __new__ since that does the same thing?
     # We use __new__ here to unsure that two Integer's that have the same value
     # return the same object.
     def __new__(cls, value) -> "Integer":
@@ -163,12 +156,12 @@ class Integer(Number):
     def __init__(self, value):
         super().__init__()
 
-    def make_boxes(self, form) -> "_BoxedString":
-        from mathics.builtin.box.inout import _BoxedString
+    def make_boxes(self, form) -> "String":
+        from mathics.builtin.box.layout import _boxed_string
 
         if form in ("System`InputForm", "System`FullForm"):
-            return _BoxedString(str(self.value), number_as_text=True)
-        return _BoxedString(str(self.value))
+            return _boxed_string(str(self.value), number_as_text=True)
+        return String(str(self.value))
 
     def atom_to_boxes(self, f, evaluation):
         return self.make_boxes(f.get_name())
@@ -202,11 +195,11 @@ class Integer(Number):
         """Mathics SameQ"""
         return isinstance(other, Integer) and self.value == other.value
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             return super().get_sort_key(True)
         else:
-            return [0, 0, self.value, 0, 1]
+            return (0, 0, self.value, 0, 1)
 
     def do_copy(self) -> "Integer":
         return Integer(self.value)
@@ -240,6 +233,7 @@ IntegerM1 = Integer(-1)
 class Rational(Number):
     class_head_name = "System`Rational"
 
+    # Think about: Do we ever need this on a __new__ since that does the same thing?
     @lru_cache()
     def __new__(cls, numerator, denominator=1) -> "Rational":
         self = super().__new__(cls)
@@ -247,7 +241,9 @@ class Rational(Number):
         return self
 
     def atom_to_boxes(self, f, evaluation):
-        return self.format(evaluation, f.get_name())
+        from mathics.core.formatter import format_element
+
+        return format_element(self, evaluation, f)
 
     def to_sympy(self, **kwargs):
         return self.value
@@ -274,36 +270,15 @@ class Rational(Number):
     def denominator(self) -> "Integer":
         return Integer(self.value.as_numer_denom()[1])
 
-    def do_format(self, evaluation, form) -> "Expression":
-        from mathics.core.expression import Expression
-
-        assert isinstance(form, Symbol)
-        if form is SymbolFullForm:
-            return Expression(
-                Expression(SymbolHoldForm, SymbolRational),
-                self.numerator(),
-                self.denominator(),
-            ).do_format(evaluation, form)
-        else:
-            numerator = self.numerator()
-            minus = numerator.value < 0
-            if minus:
-                numerator = Integer(-numerator.value)
-            result = Expression(SymbolDivide, numerator, self.denominator())
-            if minus:
-                result = Expression(SymbolMinus, result)
-            result = Expression(SymbolHoldForm, result)
-            return result.do_format(evaluation, form)
-
     def default_format(self, evaluation, form) -> str:
         return "Rational[%s, %s]" % self.value.as_numer_denom()
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             return super().get_sort_key(True)
         else:
             # HACK: otherwise "Bus error" when comparing 1==1.
-            return [0, 0, sympy.Float(self.value), 0, 1]
+            return (0, 0, sympy.Float(self.value), 0, 1)
 
     def do_copy(self) -> "Rational":
         return Rational(self.value)
@@ -387,10 +362,10 @@ class Real(Number):
     def atom_to_boxes(self, f, evaluation):
         return self.make_boxes(f.get_name())
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             return super().get_sort_key(True)
-        return [0, 0, self.value, 0, 1]
+        return (0, 0, self.value, 0, 1)
 
     def is_nan(self, d=None) -> bool:
         return isinstance(self.value, sympy.core.numbers.NaN)
@@ -468,7 +443,7 @@ class MachineReal(Real):
         return self.value
 
     def make_boxes(self, form):
-        from mathics.builtin.inout import number_form
+        from mathics.builtin.makeboxes import number_form
 
         _number_form_options["_Form"] = form  # passed to _NumberFormat
         if form in ("System`InputForm", "System`FullForm"):
@@ -554,7 +529,7 @@ class PrecisionReal(Real):
         return self.value._prec + 1.0
 
     def make_boxes(self, form):
-        from mathics.builtin.inout import number_form
+        from mathics.builtin.makeboxes import number_form
 
         _number_form_options["_Form"] = form  # passed to _NumberFormat
         return number_form(
@@ -588,6 +563,8 @@ class Complex(Number):
         self = super().__new__(cls)
         if isinstance(real, Complex) or not isinstance(real, Number):
             raise ValueError("Argument 'real' must be a real number.")
+        if imag is SymbolInfinity:
+            return SymbolI * SymbolInfinity
         if isinstance(imag, Complex) or not isinstance(imag, Number):
             raise ValueError("Argument 'imag' must be a real number.")
 
@@ -604,7 +581,9 @@ class Complex(Number):
         return self
 
     def atom_to_boxes(self, f, evaluation):
-        return self.format(evaluation, f.get_name())
+        from mathics.core.formatter import format_element
+
+        return format_element(self, evaluation, f)
 
     def __str__(self) -> str:
         return str(self.to_sympy())
@@ -620,42 +599,17 @@ class Complex(Number):
     def to_mpmath(self):
         return mpmath.mpc(self.real.to_mpmath(), self.imag.to_mpmath())
 
-    def do_format(self, evaluation, form) -> "Expression":
-        from mathics.core.expression import Expression
-
-        assert isinstance(form, Symbol)
-
-        if form is SymbolFullForm:
-            return Expression(
-                Expression(SymbolHoldForm, SymbolComplex), self.real, self.imag
-            ).do_format(evaluation, form)
-
-        parts: typing.List[Any] = []
-        if self.is_machine_precision() or not self.real.is_zero:
-            parts.append(self.real)
-        if self.imag.sameQ(Integer(1)):
-            parts.append(SymbolI)
-        else:
-            parts.append(Expression(SymbolTimes, self.imag, SymbolI))
-
-        if len(parts) == 1:
-            result = parts[0]
-        else:
-            result = Expression(SymbolPlus, *parts)
-
-        return Expression(SymbolHoldForm, result).do_format(evaluation, form)
-
     def default_format(self, evaluation, form) -> str:
         return "Complex[%s, %s]" % (
             self.real.default_format(evaluation, form),
             self.imag.default_format(evaluation, form),
         )
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             return super().get_sort_key(True)
         else:
-            return [0, 0, self.real.get_sort_key()[2], self.imag.get_sort_key()[2], 1]
+            return (0, 0, self.real.get_sort_key()[2], self.imag.get_sort_key()[2], 1)
 
     def sameQ(self, other) -> bool:
         """Mathics SameQ"""
@@ -739,7 +693,7 @@ class Complex(Number):
         return real_zero and imag_zero
 
 
-class String(Atom, ImmutableValueMixin):
+class String(Atom, BoxElementMixin):
     value: str
     class_head_name = "System`String"
 
@@ -753,15 +707,13 @@ class String(Atom, ImmutableValueMixin):
         return '"%s"' % self.value
 
     def atom_to_boxes(self, f, evaluation):
-        from mathics.builtin.box.inout import _BoxedString
+        from mathics.builtin.box.layout import _boxed_string
 
         inner = str(self.value)
         if f in SYSTEM_SYMBOLS_INPUT_OR_FULL_FORM:
-            inner = inner.replace("\\", "\\\\")
-            return _BoxedString(
-                '"' + inner + '"', **{"System`ShowStringCharacters": SymbolTrue}
-            )
-        return _BoxedString('"' + inner + '"')
+            inner = '"' + inner.replace("\\", "\\\\") + '"'
+            return _boxed_string(inner, **{"System`ShowStringCharacters": SymbolTrue})
+        return String('"' + inner + '"')
 
     def do_copy(self) -> "String":
         return String(self.value)
@@ -770,11 +722,11 @@ class String(Atom, ImmutableValueMixin):
         value = self.value.replace("\\", "\\\\").replace('"', '\\"')
         return '"%s"' % value
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             return super().get_sort_key(True)
         else:
-            return [0, 1, self.value, 0, 1]
+            return (0, 1, self.value, 0, 1)
 
     def sameQ(self, other) -> bool:
         """Mathics SameQ"""
@@ -782,6 +734,9 @@ class String(Atom, ImmutableValueMixin):
 
     def get_string_value(self) -> str:
         return self.value
+
+    def to_expression(self):
+        return self
 
     def to_sympy(self, **kwargs):
         return None
@@ -825,10 +780,8 @@ class ByteArrayAtom(Atom, ImmutableValueMixin):
     def __str__(self) -> str:
         return base64.b64encode(self.value).decode("utf8")
 
-    def atom_to_boxes(self, f, evaluation) -> "_BoxedString":
-        from mathics.builtin.box.inout import _BoxedString
-
-        res = _BoxedString('""' + self.__str__() + '""')
+    def atom_to_boxes(self, f, evaluation) -> "String":
+        res = String('""' + self.__str__() + '""')
         return res
 
     def do_copy(self) -> "ByteArrayAtom":
@@ -838,11 +791,11 @@ class ByteArrayAtom(Atom, ImmutableValueMixin):
         value = self.value
         return '"' + value.__str__() + '"'
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         if pattern_sort:
             return super().get_sort_key(True)
         else:
-            return [0, 1, self.value, 0, 1]
+            return (0, 1, self.value, 0, 1)
 
     def sameQ(self, other) -> bool:
         """Mathics SameQ"""

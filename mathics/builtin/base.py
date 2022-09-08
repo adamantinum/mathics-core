@@ -6,12 +6,10 @@ import sympy
 from functools import total_ordering
 import importlib
 from itertools import chain
-import typing
-from typing import Any, Callable, Iterable, List, Optional, cast
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union, cast
 
 
 from mathics.builtin.exceptions import (
-    BoxConstructError,
     MessageException,
 )
 
@@ -23,8 +21,10 @@ from mathics.core.atoms import (
 )
 from mathics.core.attributes import protected, read_protected, no_attributes
 from mathics.core.convert.expression import to_expression
+from mathics.core.convert.python import from_bool
 from mathics.core.convert.sympy import from_sympy
 from mathics.core.definitions import Definition
+from mathics.core.element import BoxElementMixin
 from mathics.core.expression import Expression, SymbolDefault
 from mathics.core.list import ListExpression
 from mathics.core.number import get_precision, PrecisionValueError
@@ -33,12 +33,11 @@ from mathics.core.rules import Rule, BuiltinRule, Pattern
 from mathics.core.symbols import (
     BaseElement,
     Symbol,
+    SymbolHoldForm,
     ensure_context,
     strip_context,
-    SymbolFalse,
-    SymbolTrue,
 )
-from mathics.core.systemsymbols import SymbolHoldForm, SymbolMessageName, SymbolRule
+from mathics.core.systemsymbols import SymbolMessageName, SymbolRule
 
 
 def check_requires_list(requires: list) -> bool:
@@ -174,15 +173,15 @@ class Builtin:
     ```
     """
 
-    name: typing.Optional[str] = None
+    name: Optional[str] = None
     context: str = ""
     abstract: bool = False
     attributes: int = protected
     is_numeric: bool = False
-    rules: typing.Dict[str, Any] = {}
-    formats: typing.Dict[str, Any] = {}
-    messages: typing.Dict[str, Any] = {}
-    options: typing.Dict[str, Any] = {}
+    rules: Dict[str, Any] = {}
+    formats: Dict[str, Any] = {}
+    messages: Dict[str, Any] = {}
+    options: Dict[str, Any] = {}
     defaults = {}
 
     def __new__(cls, *args, **kwargs):
@@ -216,9 +215,13 @@ class Builtin:
         # Set the default context
         if not self.context:
             self.context = "Pymathics`" if is_pymodule else "System`"
-
         name = self.get_name()
         options = {}
+
+        # - 'Strict': warn and fail with unsupported options
+        # - 'Warn': warn about unsupported options, but continue
+        # - 'Ignore': allow unsupported options, do not warn
+
         option_syntax = "Warn"
 
         for option, value in self.options.items():
@@ -239,22 +242,18 @@ class Builtin:
         # in your Builtin's 'options', you can specify the exact behaviour
         # using one of the following values:
 
-        # - 'Strict': warn and fail with unsupported options
-        # - 'Warn': warn about unsupported options, but continue
-        # - 'Ignore': allow unsupported options, do not warn
-
         if option_syntax in ("Strict", "Warn", "System`Strict", "System`Warn"):
 
             def check_options(options_to_check, evaluation):
-                name = self.get_name()
+                option_name = self.get_name()
                 for key, value in options_to_check.items():
                     short_key = strip_context(key)
                     if not has_option(options, short_key, evaluation):
                         evaluation.message(
-                            name,
+                            option_name,
                             "optx",
                             Expression(SymbolRule, String(short_key), value),
-                            strip_context(name),
+                            strip_context(option_name),
                         )
                         if option_syntax in ("Strict", "System`Strict"):
                             return False
@@ -358,16 +357,6 @@ class Builtin:
             )
         )
 
-        options = {}
-        for option, value in self.options.items():
-            option = ensure_context(option)
-            options[option] = parse_builtin_rule(value)
-            if option.startswith("System`"):
-                # Create a definition for the option's symbol.
-                # Otherwise it'll be created in Global` when it's
-                # used, so it won't work.
-                if option not in definitions.builtin:
-                    definitions.builtin[option] = Definition(name=name)
         defaults = []
         for spec, value in self.defaults.items():
             value = parse_builtin_rule(value)
@@ -409,10 +398,10 @@ class Builtin:
             return shortname
         return cls.context + shortname
 
-    def get_operator(self) -> typing.Optional[str]:
+    def get_operator(self) -> Optional[str]:
         return None
 
-    def get_operator_display(self) -> typing.Optional[str]:
+    def get_operator_display(self) -> Optional[str]:
         return None
 
     def get_functions(self, prefix="apply", is_pymodule=False):
@@ -535,17 +524,17 @@ class AtomBuiltin(Builtin):
 
 
 class Operator(Builtin):
-    operator: typing.Optional[str] = None
-    precedence: typing.Optional[int] = None
+    operator: Optional[str] = None
+    precedence: Optional[int] = None
     precedence_parse = None
     needs_verbatim = False
 
     default_formats = True
 
-    def get_operator(self) -> typing.Optional[str]:
+    def get_operator(self) -> Optional[str]:
         return self.operator
 
-    def get_operator_display(self) -> typing.Optional[str]:
+    def get_operator_display(self) -> Optional[str]:
         if hasattr(self, "operator_display"):
             return self.operator_display
         else:
@@ -561,7 +550,7 @@ class Predefined(Builtin):
 
 
 class SympyObject(Builtin):
-    sympy_name: typing.Optional[str] = None
+    sympy_name: Optional[str] = None
 
     mathics_to_sympy = {}
 
@@ -574,7 +563,7 @@ class SympyObject(Builtin):
     def is_constant(self) -> bool:
         return False
 
-    def get_sympy_names(self) -> typing.List[str]:
+    def get_sympy_names(self) -> List[str]:
         if self.sympy_name:
             return [self.sympy_name]
         return []
@@ -657,15 +646,10 @@ class BinaryOperator(Operator):
 
 
 class Test(Builtin):
-    def apply(self, expr, evaluation) -> Symbol:
+    def apply(self, expr, evaluation) -> Optional[Symbol]:
         "%(name)s[expr_]"
-        tst = self.test(expr)
-        if tst:
-            return SymbolTrue
-        elif tst is False:
-            return SymbolFalse
-        else:
-            return
+        test_expr = self.test(expr)
+        return None if test_expr is None else from_bool(bool(test_expr))
 
 
 class SympyFunction(SympyObject):
@@ -679,7 +663,10 @@ class SympyFunction(SympyObject):
         args = z.numerify(evaluation).get_sequence()
         sympy_args = [a.to_sympy() for a in args]
         sympy_fn = getattr(sympy, self.sympy_name)
-        return from_sympy(sympy_fn(*sympy_args))
+        try:
+            return from_sympy(sympy_fn(*sympy_args))
+        except:
+            return
 
     def get_constant(self, precision, evaluation, have_mpmath=False):
         try:
@@ -721,13 +708,11 @@ class SympyFunction(SympyObject):
         return sympy_expr
 
 
-class BoxExpression(BuiltinElement):
+class BoxExpression(BuiltinElement, BoxElementMixin):
     # This is the base class for the "Final form"
     # of formatted expressions.
     #
-    # The idea is that this class and their subclasses implement
-    # methods of the form ``boxes_to_*`` that now are in ``mathics.core.Expression``.
-    # Also, these objects should not be evaluated, so in the evaluation process should be
+    # These objects should not be evaluated, so in the evaluation process should be
     # considered "inert". However, it could happend that an Expression having them as an element
     # be evaluable, and try to apply rules. For example,
     # InputForm[ToBoxes[a+b]]
@@ -821,7 +806,7 @@ class BoxExpression(BuiltinElement):
     def get_lookup_name(self):
         return self.get_name()
 
-    def get_sort_key(self):
+    def get_sort_key(self) -> tuple:
         return self.to_expression().get_sort_key()
 
     def get_string_value(self):
@@ -879,15 +864,6 @@ class BoxExpression(BuiltinElement):
                 default[option] = parse_builtin_rule(value)
         return default
 
-    def boxes_to_text(self, elements, **options) -> str:
-        raise BoxConstructError
-
-    def boxes_to_mathml(self, elements, **options) -> str:
-        raise BoxConstructError
-
-    def boxes_to_tex(self, elements, **options) -> str:
-        raise BoxConstructError
-
 
 class PatternError(Exception):
     def __init__(self, name, tag, *args):
@@ -905,7 +881,7 @@ class PatternArgumentError(PatternError):
 class PatternObject(BuiltinElement, Pattern):
     needs_verbatim = True
 
-    arg_counts: typing.List[int] = []
+    arg_counts: List[int] = []
 
     def init(self, expr):
         super().init(expr)
@@ -947,7 +923,7 @@ class PatternObject(BuiltinElement, Pattern):
     def get_match_count(self, vars={}):
         return (1, 1)
 
-    def get_sort_key(self, pattern_sort=False):
+    def get_sort_key(self, pattern_sort=False) -> tuple:
         return self.expr.get_sort_key(pattern_sort=pattern_sort)
 
 
@@ -968,7 +944,7 @@ class CountableInteger:
     # _support_infinity to False.
     _finite: bool
     _upper_limit: bool
-    _integer: typing.Union[str, int]
+    _integer: Union[str, int]
     _support_infinity = False
 
     def __init__(self, value="Infinity", upper_limit=True):
