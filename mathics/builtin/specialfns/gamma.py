@@ -18,15 +18,15 @@ from mathics.core.atoms import (
     Number,
 )
 from mathics.core.attributes import (
-    listable as A_LISTABLE,
-    numeric_function as A_NUMERIC_FUNCTION,
-    protected as A_PROTECTED,
+    A_LISTABLE,
+    A_NUMERIC_FUNCTION,
+    A_PROTECTED,
 )
 from mathics.core.convert.mpmath import from_mpmath
 from mathics.core.convert.python import from_python
 from mathics.core.convert.sympy import from_sympy
 from mathics.core.expression import Expression
-from mathics.core.evaluators import eval_N
+from mathics.eval.nevaluator import eval_N
 from mathics.core.number import min_prec, dps
 from mathics.core.symbols import Symbol, SymbolSequence
 from mathics.core.systemsymbols import (
@@ -36,6 +36,8 @@ from mathics.core.systemsymbols import (
     SymbolGamma,
     SymbolIndeterminate,
 )
+
+from mathics.eval.numerify import numerify
 
 
 class Beta(_MPMathMultiFunction):
@@ -98,11 +100,9 @@ class Beta(_MPMathMultiFunction):
         if not all(isinstance(q, Number) for q in (a, b, z)):
             return
 
-        args = (
-            Expression(SymbolSequence, a, b, Integer0, z)
-            .numerify(evaluation)
-            .get_sequence()
-        )
+        args = numerify(
+            Expression(SymbolSequence, a, b, Integer0, z), evaluation
+        ).get_sequence()
         mpmath_function = self.get_mpmath_function(tuple(args))
         if any(arg.is_machine_precision() for arg in args):
             # if any argument has machine precision then the entire calculation

@@ -4,7 +4,6 @@ Lower-level formatter Mathics objects as plain text.
 """
 
 
-from mathics.builtin.exceptions import BoxConstructError
 from mathics.builtin.box.graphics import GraphicsBox
 from mathics.builtin.box.graphics3d import Graphics3DBox
 from mathics.builtin.box.layout import (
@@ -19,6 +18,7 @@ from mathics.builtin.box.layout import (
 )
 
 from mathics.core.atoms import String
+from mathics.core.exceptions import BoxConstructError
 from mathics.core.formatter import (
     add_conversion_fn,
     lookup_method,
@@ -64,8 +64,9 @@ add_conversion_fn(FractionBox, fractionbox)
 def gridbox(self, elements=None, **box_options) -> str:
     if not elements:
         elements = self._elements
-    evaluation = box_options.get("evaluation")
+    evaluation = box_options.get("evaluation", None)
     items, options = self.get_array(elements, evaluation)
+
     result = ""
     if not items:
         return ""
@@ -73,7 +74,7 @@ def gridbox(self, elements=None, **box_options) -> str:
     cells = [
         [
             # TODO: check if this evaluation is necesary.
-            boxes_to_text(item.evaluate(evaluation), **box_options).splitlines()
+            boxes_to_text(item, **box_options).splitlines()
             for item in row
         ]
         for row in items

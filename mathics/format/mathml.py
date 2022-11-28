@@ -9,7 +9,6 @@ import base64
 import html
 
 
-from mathics.builtin.exceptions import BoxConstructError
 from mathics.builtin.box.layout import (
     GridBox,
     RowBox,
@@ -26,6 +25,7 @@ from mathics.builtin.box.graphics3d import Graphics3DBox
 
 from mathics.core.atoms import String
 from mathics.core.element import BoxElementMixin
+from mathics.core.exceptions import BoxConstructError
 from mathics.core.formatter import (
     lookup_method as lookup_conversion_method,
     add_conversion_fn,
@@ -154,7 +154,9 @@ def gridbox(self, elements=None, **box_options) -> str:
     for row in items:
         result += "<mtr>"
         for item in row:
-            result += f"<mtd {joined_attrs}>{boxes_to_mathml(item.evaluate(evaluation), **new_box_options)}</mtd>"
+            result += (
+                f"<mtd {joined_attrs}>{boxes_to_mathml(item, **new_box_options)}</mtd>"
+            )
         result += "</mtr>\n"
     result += "</mtable>"
     return result

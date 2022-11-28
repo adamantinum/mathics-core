@@ -30,10 +30,9 @@ from mathics.core.atoms import (
     Integer0,
     Integer1,
 )
-from mathics.core.attributes import hold_all, protected
+from mathics.core.attributes import A_HOLD_ALL, A_PROTECTED
 from mathics.core.convert.expression import to_expression, to_mathics_list
 from mathics.core.convert.python import from_python
-from mathics.core.evaluators import eval_N
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
 from mathics.core.symbols import Symbol, SymbolList, SymbolN, SymbolPower, SymbolTrue
@@ -57,6 +56,8 @@ from mathics.core.systemsymbols import (
     SymbolStyle,
 )
 
+from mathics.eval.nevaluator import eval_N
+
 RealPoint6 = Real(0.6)
 RealPoint2 = Real(0.2)
 
@@ -69,7 +70,7 @@ SymbolRectangle = Symbol("Rectangle")
 SymbolText = Symbol("Text")
 
 try:
-    from mathics.builtin.compile import _compile, CompileArg, CompileError, real_type
+    from mathics.compile import _compile, CompileArg, CompileError, real_type
 
     has_compile = True
 except ImportError:
@@ -384,7 +385,7 @@ def get_plot_range(values, all_values, option):
 
 class _Plot(Builtin):
 
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
 
     expect_list = False
 
@@ -464,7 +465,7 @@ class _Plot(Builtin):
             return False
 
         plotrange_option = self.get_option(options, "PlotRange", evaluation)
-        plotrange = plotrange_option.to_python(n_evaluation=evaluation)
+        plotrange = eval_N(plotrange_option, evaluation).to_python()
         x_range, y_range = self.get_plotrange(plotrange, start, stop)
         if not check_range(x_range) or not check_range(y_range):
             evaluation.message(self.get_name(), "prng", plotrange_option)
@@ -531,7 +532,7 @@ class _Plot(Builtin):
             return True
 
         exclusions_option = self.get_option(options, "Exclusions", evaluation)
-        exclusions = exclusions_option.to_python(n_evaluation=evaluation)
+        exclusions = eval_N(exclusions_option, evaluation).to_python()
         # TODO Turn expressions into points E.g. Sin[x] == 0 becomes 0, 2 Pi...
 
         if exclusions in ["System`None", ["System`None"]]:
@@ -747,7 +748,7 @@ class _Plot(Builtin):
 
 
 class _Chart(Builtin):
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
     never_monochrome = False
     options = Graphics.options.copy()
     options.update(
@@ -1227,7 +1228,7 @@ class Histogram(Builtin):
      = -Graphics-
     """
 
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
 
     options = Graphics.options.copy()
     options.update(
@@ -1479,7 +1480,7 @@ class _ListPlot(Builtin):
         "%(name)s[points_, OptionsPattern[%(name)s]]"
 
         plot_name = self.get_name()
-        all_points = points.to_python(n_evaluation=evaluation)
+        all_points = eval_N(points, evaluation).to_python()
         # FIXME: arrange forself to have a .symbolname property or attribute
         expr = Expression(Symbol(self.get_name()), points, *options_to_rules(options))
 
@@ -1495,7 +1496,7 @@ class _ListPlot(Builtin):
             return False
 
         plotrange_option = self.get_option(options, "PlotRange", evaluation)
-        plotrange = plotrange_option.to_python(n_evaluation=evaluation)
+        plotrange = eval_N(plotrange_option, evaluation).to_python()
         if plotrange == "System`All":
             plotrange = ["System`All", "System`All"]
         elif plotrange == "System`Automatic":
@@ -1522,7 +1523,7 @@ class _ListPlot(Builtin):
         # Filling option
         # TODO: Fill between corresponding points in two datasets:
         filling_option = self.get_option(options, "Filling", evaluation)
-        filling = filling_option.to_python(n_evaluation=evaluation)
+        filling = eval_N(filling_option, evaluation).to_python()
         if filling in [
             "System`Top",
             "System`Bottom",
@@ -2348,7 +2349,7 @@ class ListPlot(_ListPlot):
      = -Graphics-
     """
 
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
 
     options = Graphics.options.copy()
     options.update(
@@ -2387,7 +2388,7 @@ class ListLinePlot(_ListPlot):
      = -Graphics-
     """
 
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
 
     options = Graphics.options.copy()
     options.update(
@@ -2465,7 +2466,7 @@ class Plot3D(_Plot3D):
     """
     #> Plot3D[x + 2y, {x, -2, 2}, {y, -2, 2}] // TeXForm
     """
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
 
     options = Graphics.options.copy()
     options.update(
@@ -2546,7 +2547,7 @@ class DensityPlot(_Plot3D):
      = -Graphics-
     """
 
-    attributes = hold_all | protected
+    attributes = A_HOLD_ALL | A_PROTECTED
 
     options = Graphics.options.copy()
     options.update(

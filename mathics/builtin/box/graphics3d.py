@@ -6,7 +6,6 @@ Boxing Routines for 3D Graphics
 import json
 import numbers
 
-from mathics.builtin.exceptions import BoxExpressionError
 from mathics.builtin.box.graphics import (
     GraphicsBox,
     ArrowBox,
@@ -25,8 +24,12 @@ from mathics.builtin.drawing.graphics3d import (
 )
 
 from mathics.builtin.drawing.graphics_internals import get_class
-from mathics.core.symbols import Symbol, SymbolTrue
+
+from mathics.core.exceptions import BoxExpressionError
 from mathics.core.formatter import lookup_method
+from mathics.core.symbols import Symbol, SymbolTrue
+
+from mathics.eval.nevaluator import eval_N
 
 
 class Graphics3DBox(GraphicsBox):
@@ -182,7 +185,7 @@ class Graphics3DBox(GraphicsBox):
 
         # ViewPoint Option
         viewpoint_option = self.graphics_options["System`ViewPoint"]
-        viewpoint = viewpoint_option.to_python(n_evaluation=evaluation)
+        viewpoint = eval_N(viewpoint_option, evaluation).to_python()
 
         if isinstance(viewpoint, list) and len(viewpoint) == 3:
             if all(isinstance(x, numbers.Real) for x in viewpoint):

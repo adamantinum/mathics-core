@@ -11,7 +11,6 @@ from itertools import chain
 from mathics.builtin.base import (
     BinaryOperator,
     Builtin,
-    MessageException,
 )
 
 from mathics.algorithm.parts import (
@@ -26,18 +25,18 @@ from mathics.algorithm.parts import (
 )
 
 from mathics.builtin.box.layout import RowBox
-from mathics.builtin.exceptions import InvalidLevelspecError, PartError
 from mathics.builtin.lists import list_boxes
 from mathics.core.atoms import Integer, Integer0, Integer1, String
 from mathics.core.attributes import (
-    hold_first as A_HOLD_FIRST,
-    hold_rest as A_HOLD_REST,
-    n_hold_rest as A_N_HOLD_REST,
-    protected as A_PROTECTED,
-    read_protected as A_READ_PROTECTED,
+    A_HOLD_FIRST,
+    A_HOLD_REST,
+    A_N_HOLD_REST,
+    A_PROTECTED,
+    A_READ_PROTECTED,
 )
 from mathics.core.convert.expression import to_mathics_list
 from mathics.core.convert.python import from_python
+from mathics.core.exceptions import InvalidLevelspecError, MessageException, PartError
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
 from mathics.core.rules import Rule

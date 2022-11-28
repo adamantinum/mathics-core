@@ -14,7 +14,6 @@ Symbols exist.
 
 import re
 
-from mathics.builtin.exceptions import BoxConstructError
 from mathics.builtin.box.graphics import GraphicsBox
 from mathics.builtin.box.graphics3d import Graphics3DBox
 from mathics.builtin.box.layout import (
@@ -30,6 +29,7 @@ from mathics.builtin.box.layout import (
 from mathics.builtin.colors.color_directives import RGBColor
 
 from mathics.core.atoms import String
+from mathics.core.exceptions import BoxConstructError
 from mathics.core.formatter import (
     lookup_method as lookup_conversion_method,
     add_conversion_fn,
@@ -184,9 +184,7 @@ def gridbox(self, elements=None, **box_options) -> str:
         column_count = max(column_count, len(row))
     result = r"\begin{array}{%s} " % (column_alignments * column_count)
     for index, row in enumerate(items):
-        result += " & ".join(
-            boxes_to_tex(item.evaluate(evaluation), **new_box_options) for item in row
-        )
+        result += " & ".join(boxes_to_tex(item, **new_box_options) for item in row)
         if index != len(items) - 1:
             result += "\\\\ "
     result += r"\end{array}"

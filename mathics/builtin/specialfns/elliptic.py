@@ -6,13 +6,16 @@ In integral calculus, an <url>:elliptic integral: https://en.wikipedia.org/wiki/
 """
 
 from mathics.core.attributes import (
-    listable as A_LISTABLE,
-    numeric_function as A_NUMERIC_FUNCTION,
-    protected as A_PROTECTED,
+    A_LISTABLE,
+    A_NUMERIC_FUNCTION,
+    A_PROTECTED,
 )
 from mathics.builtin.base import SympyFunction
 from mathics.core.atoms import Integer
+from mathics.core.convert.expression import to_numeric_sympy_args
 from mathics.core.convert.sympy import from_sympy
+
+from mathics.eval.numerify import numerify
 
 import sympy
 
@@ -52,7 +55,7 @@ class EllipticE(SympyFunction):
 
     def apply_m(self, m, evaluation):
         "%(name)s[m_]"
-        sympy_arg = m.numerify(evaluation).to_sympy()
+        sympy_arg = numerify(m, evaluation).to_sympy()
         try:
             return from_sympy(sympy.elliptic_e(sympy_arg))
         except:
@@ -60,7 +63,7 @@ class EllipticE(SympyFunction):
 
     def apply_phi_m(self, phi, m, evaluation):
         "%(name)s[phi_, m_]"
-        sympy_args = [a.numerify(evaluation).to_sympy() for a in (phi, m)]
+        sympy_args = [numerify(a, evaluation).to_sympy() for a in (phi, m)]
         try:
             return from_sympy(sympy.elliptic_e(*sympy_args))
         except:
@@ -96,7 +99,7 @@ class EllipticF(SympyFunction):
 
     def apply(self, phi, m, evaluation):
         "%(name)s[phi_, m_]"
-        sympy_args = [a.numerify(evaluation).to_sympy() for a in (phi, m)]
+        sympy_args = [numerify(a, evaluation).to_sympy() for a in (phi, m)]
         try:
             return from_sympy(sympy.elliptic_f(*sympy_args))
         except:
@@ -135,7 +138,7 @@ class EllipticK(SympyFunction):
 
     def apply(self, m, evaluation):
         "%(name)s[m_]"
-        args = m.numerify(evaluation).get_sequence()
+        args = numerify(m, evaluation).get_sequence()
         sympy_args = [a.to_sympy() for a in args]
         try:
             return from_sympy(sympy.elliptic_k(*sympy_args))
@@ -172,18 +175,18 @@ class EllipticPi(SympyFunction):
 
     def apply_n_m(self, n, m, evaluation):
         "%(name)s[n_, m_]"
-        sympy_n = m.numerify(evaluation).to_sympy()
-        sympy_m = n.numerify(evaluation).to_sympy()
+        sympy_m = to_numeric_sympy_args(m, evaluation)[0]
+        sympy_n = to_numeric_sympy_args(n, evaluation)[0]
         try:
-            return from_sympy(sympy.elliptic_pi(sympy_n, sympy_m))
+            return from_sympy(sympy.elliptic_pi(sympy_m, sympy_n))
         except:
             return
 
     def apply_n_phi_m(self, n, phi, m, evaluation):
         "%(name)s[n_, phi_, m_]"
-        sympy_n = m.numerify(evaluation).to_sympy()
-        sympy_phi = m.numerify(evaluation).to_sympy()
-        sympy_m = n.numerify(evaluation).to_sympy()
+        sympy_n = to_numeric_sympy_args(n, evaluation)[0]
+        sympy_phi = to_numeric_sympy_args(m, evaluation)[0]
+        sympy_m = to_numeric_sympy_args(m, evaluation)[0]
         try:
             result = from_sympy(sympy.elliptic_pi(sympy_n, sympy_phi, sympy_m))
             return result

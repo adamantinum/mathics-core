@@ -7,6 +7,8 @@ Mathematical Functions
 Basic arithmetic functions, including complex number arithmetic.
 """
 
+from mathics.eval.numerify import numerify
+
 # This tells documentation how to sort this module
 sort_order = "mathics.builtin.mathematical-functions"
 
@@ -16,15 +18,15 @@ import mpmath
 from functools import lru_cache
 
 from mathics.core.attributes import (
-    hold_all as A_HOLD_ALL,
-    hold_rest as A_HOLD_REST,
-    listable as A_LISTABLE,
-    no_attributes as A_NO_ATTRIBUTES,
-    numeric_function as A_NUMERIC_FUNCTION,
-    protected as A_PROTECTED,
+    A_HOLD_ALL,
+    A_HOLD_REST,
+    A_LISTABLE,
+    A_NO_ATTRIBUTES,
+    A_NUMERIC_FUNCTION,
+    A_PROTECTED,
 )
 
-from mathics.core.evaluators import eval_N
+from mathics.eval.nevaluator import eval_N
 
 from mathics.builtin.base import (
     Builtin,
@@ -82,7 +84,7 @@ from mathics.core.systemsymbols import (
 )
 
 
-@lru_cache(maxsize=1024)
+@lru_cache(maxsize=4096)
 def call_mpmath(mpmath_function, mpmath_args):
     try:
         return mpmath_function(*mpmath_args)
@@ -123,7 +125,7 @@ class _MPMathFunction(SympyFunction):
     def apply(self, z, evaluation):
         "%(name)s[z__]"
 
-        args = z.numerify(evaluation).get_sequence()
+        args = numerify(z, evaluation).get_sequence()
         mpmath_function = self.get_mpmath_function(tuple(args))
         result = None
 
@@ -183,20 +185,6 @@ class _MPMathFunction(SympyFunction):
                 if isinstance(result, (mpmath.mpc, mpmath.mpf)):
                     result = from_mpmath(result, d)
         return result
-
-    def call_mpmath(self, mpmath_function, mpmath_args):
-        try:
-            return mpmath_function(*mpmath_args)
-        except ValueError as exc:
-            text = str(exc)
-            if text == "gamma function pole":
-                return SymbolComplexInfinity
-            else:
-                raise
-        except ZeroDivisionError:
-            return
-        except SpecialValueError as exc:
-            return Symbol(exc.name)
 
 
 class _MPMathMultiFunction(_MPMathFunction):

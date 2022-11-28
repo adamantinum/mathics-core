@@ -17,9 +17,11 @@ from functools import reduce
 from mathics.builtin.base import Builtin
 from mathics.builtin.numpy_utils import instantiate_elements, stack
 from mathics.core.atoms import Integer, String, Real, Complex
+from mathics.eval.nevaluator import eval_N
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
 from mathics.core.symbols import Symbol, SymbolDivide, SymbolNull
+
 
 SymbolRandomComplex = Symbol("RandomComplex")
 SymbolRandomReal = Symbol("RandomReal")
@@ -497,11 +499,21 @@ class RandomComplex(Builtin):
 
     @staticmethod
     def to_complex(value, evaluation):
-        result = value.to_python(n_evaluation=evaluation)
-        if isinstance(result, (float, int)):
-            result = complex(result)
-        if isinstance(result, complex):
-            return result
+        result = eval_N(value, evaluation)
+
+        if hasattr(result, "value"):
+            result_value = result.value
+        else:
+            # TODO: result.value does not work, because
+            # Complex does not have a ``value`` attribute.
+            # Otherwise, we could return here ``None``.
+            result_value = result.to_python()
+
+        if isinstance(result_value, (float, int)):
+            return complex(result_value)
+        if isinstance(result_value, complex):
+            return result_value
+
         return None
 
     def apply(self, zmin, zmax, evaluation):
@@ -644,9 +656,7 @@ class _RandomSelection(_RandomBase):
                 return evaluation.message(self.get_name(), "wghtv", weights), None
             weights = norm_weights
 
-        py_weights = (
-            weights.to_python(n_evaluation=evaluation) if is_proper_spec else None
-        )
+        py_weights = eval_N(weights, evaluation).to_python() if is_proper_spec else None
         if (py_weights is None) or (
             not all(isinstance(w, (int, float)) and w >= 0 for w in py_weights)
         ):
@@ -725,8 +735,8 @@ class RandomSample(_RandomSelection):
     </dl>
 
     >> SeedRandom[42]
-    >> RandomSample[{a, b, c}]
-     = {a}
+    >> RandomSample[{a, b, c, d}]
+     = {b, d, a, c}
     >> SeedRandom[42]
     >> RandomSample[{a, b, c, d, e, f, g, h}, 7]
      = {b, f, a, h, c, e, d}
@@ -734,12 +744,20 @@ class RandomSample(_RandomSelection):
     >> RandomSample[{"a", {1, 2}, x, {}}, 3]
      = {{1, 2}, {}, a}
     >> SeedRandom[42]
+    >> RandomSample[Range[10]]
+     = {9, 2, 6, 1, 8, 3, 10, 5, 4, 7}
+    >> SeedRandom[42]
     >> RandomSample[Range[100], {2, 3}]
      = {{84, 54, 71}, {46, 45, 40}}
     >> SeedRandom[42]
     >> RandomSample[Range[100] -> Range[100], 5]
      = {62, 98, 86, 78, 40}
     """
+
+    rules = {
+        "%(name)s[spec_]": "%(name)s[spec, {Length[spec]}]",
+        "%(name)s[spec_, n_Integer]": "%(name)s[spec, {n}]",
+    }
 
     _replace = False
     summary_text = "pick a sample at random from a list"

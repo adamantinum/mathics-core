@@ -11,13 +11,14 @@ import sympy
 import mpmath
 
 from mathics.builtin.arithmetic import _MPMathFunction, create_infix
-from mathics.core.evaluators import eval_N
 from mathics.builtin.base import (
     Builtin,
     BinaryOperator,
     PrefixOperator,
     SympyFunction,
 )
+
+
 from mathics.core.atoms import (
     Complex,
     Integer,
@@ -32,10 +33,23 @@ from mathics.core.atoms import (
     Real,
     String,
 )
+from mathics.core.attributes import (
+    A_FLAT,
+    A_LISTABLE,
+    A_NUMERIC_FUNCTION,
+    A_ONE_IDENTITY,
+    A_ORDERLESS,
+    A_PROTECTED,
+    A_READ_PROTECTED,
+)
+
 from mathics.core.convert.expression import to_expression
 from mathics.core.convert.mpmath import from_mpmath
+from mathics.core.convert.sympy import from_sympy
+
 from mathics.core.expression import ElementsProperties, Expression
 from mathics.core.list import ListExpression
+from mathics.core.number import min_prec, dps
 from mathics.core.symbols import (
     Symbol,
     SymbolDivide,
@@ -46,6 +60,7 @@ from mathics.core.symbols import (
     SymbolTimes,
 )
 from mathics.core.systemsymbols import (
+    SymbolAccuracy,
     SymbolBlank,
     SymbolComplexInfinity,
     SymbolDirectedInfinity,
@@ -57,19 +72,10 @@ from mathics.core.systemsymbols import (
     SymbolPattern,
     SymbolSequence,
 )
-from mathics.core.number import min_prec, dps
 
-from mathics.core.convert.sympy import from_sympy
 
-from mathics.core.attributes import (
-    flat,
-    listable,
-    numeric_function,
-    one_identity,
-    orderless,
-    protected,
-    read_protected,
-)
+from mathics.eval.nevaluator import eval_N
+from mathics.eval.numerify import numerify
 
 
 class CubeRoot(Builtin):
@@ -102,7 +108,7 @@ class CubeRoot(Builtin):
      = (3 + 4 I) ^ (1 / 3)
     """
 
-    attributes = listable | numeric_function | protected | read_protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED | A_READ_PROTECTED
 
     messages = {
         "preal": "The parameter `1` should be real valued.",
@@ -118,7 +124,7 @@ class CubeRoot(Builtin):
 
     summary_text = "cubed root"
 
-    def apply(self, n, evaluation):
+    def eval(self, n, evaluation):
         "CubeRoot[n_Complex]"
 
         evaluation.message("CubeRoot", "preal", n)
@@ -177,7 +183,7 @@ class Divide(BinaryOperator):
 
     operator = "/"
     precedence = 470
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
     grouping = "Left"
 
     default_formats = False
@@ -219,7 +225,7 @@ class Minus(PrefixOperator):
 
     operator = "-"
     precedence = 480
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
 
     rules = {
         "Minus[x_]": "Times[-1, x]",
@@ -236,7 +242,7 @@ class Minus(PrefixOperator):
 
     summary_text = "arithmetic negation"
 
-    def apply_int(self, x: Integer, evaluation):
+    def eval_int(self, x: Integer, evaluation):
         "Minus[x_Integer]"
         return Integer(-x.value)
 
@@ -302,7 +308,12 @@ class Plus(BinaryOperator, SympyFunction):
     operator = "+"
     precedence = 310
     attributes = (
-        flat | listable | numeric_function | one_identity | orderless | protected
+        A_FLAT
+        | A_LISTABLE
+        | A_NUMERIC_FUNCTION
+        | A_ONE_IDENTITY
+        | A_ORDERLESS
+        | A_PROTECTED
     )
 
     default_formats = False
@@ -365,15 +376,15 @@ class Plus(BinaryOperator, SympyFunction):
             SymbolLeft,
         )
 
-    def apply(self, items, evaluation):
+    def eval(self, items, evaluation):
         "Plus[items___]"
 
-        items = items.numerify(evaluation).get_sequence()
+        items_tuple = numerify(items, evaluation).get_sequence()
         elements = []
         last_item = last_count = None
 
-        prec = min_prec(*items)
-        is_machine_precision = any(item.is_machine_precision() for item in items)
+        prec = min_prec(*items_tuple)
+        is_machine_precision = any(item.is_machine_precision() for item in items_tuple)
         numbers = []
 
         def append_last():
@@ -392,7 +403,7 @@ class Plus(BinaryOperator, SympyFunction):
                             Expression(SymbolTimes, from_sympy(last_count), last_item)
                         )
 
-        for item in items:
+        for item in items_tuple:
             if isinstance(item, Number):
                 numbers.append(item)
             else:
@@ -427,10 +438,16 @@ class Plus(BinaryOperator, SympyFunction):
                     number = mpmath.fsum(numbers)
                     number = from_mpmath(number)
                 else:
+                    # For a sum, what is relevant is the minimum accuracy of the terms
+                    acc = (
+                        Expression(SymbolAccuracy, ListExpression(items))
+                        .evaluate(evaluation)
+                        .to_python()
+                    )
                     with mpmath.workprec(prec):
                         numbers = [item.to_mpmath() for item in numbers]
                         number = mpmath.fsum(numbers)
-                        number = from_mpmath(number, dps(prec))
+                        number = from_mpmath(number, acc=acc)
             else:
                 number = from_sympy(sum(item.to_sympy() for item in numbers))
         else:
@@ -531,7 +548,7 @@ class Power(BinaryOperator, _MPMathFunction):
 
     operator = "^"
     precedence = 590
-    attributes = listable | numeric_function | one_identity | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_ONE_IDENTITY | A_PROTECTED
     grouping = "Right"
 
     default_formats = False
@@ -559,7 +576,7 @@ class Power(BinaryOperator, _MPMathFunction):
             'Infix[{HoldForm[x], HoldForm[y]}, "^", 590, Right]'
         ),
         ("", "x_ ^ y_"): (
-            "PrecedenceForm[Superscript[OuterPrecedenceForm[HoldForm[x], 590],"
+            "PrecedenceForm[Superscript[PrecedenceForm[HoldForm[x], 590],"
             "  HoldForm[y]], 590]"
         ),
         ("", "x_ ^ y_?Negative"): (
@@ -577,7 +594,7 @@ class Power(BinaryOperator, _MPMathFunction):
 
     summary_text = "exponentiation"
 
-    def apply_check(self, x, y, evaluation):
+    def eval_check(self, x, y, evaluation):
         "Power[x_, y_]"
 
         # Power uses _MPMathFunction but does some error checking first
@@ -641,7 +658,7 @@ class Sqrt(SympyFunction):
      = 1.4142135623730950488016887242096980785696718753769
     """
 
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
 
     rules = {
         "Sqrt[x_]": "x ^ (1/2)",
@@ -674,7 +691,7 @@ class Subtract(BinaryOperator):
     operator = "-"
     precedence_parse = 311
     precedence = 310
-    attributes = listable | numeric_function | protected
+    attributes = A_LISTABLE | A_NUMERIC_FUNCTION | A_PROTECTED
     grouping = "Left"
 
     rules = {
@@ -768,7 +785,12 @@ class Times(BinaryOperator, SympyFunction):
     operator_display = " "
     precedence = 400
     attributes = (
-        flat | listable | numeric_function | one_identity | orderless | protected
+        A_FLAT
+        | A_LISTABLE
+        | A_NUMERIC_FUNCTION
+        | A_ONE_IDENTITY
+        | A_ORDERLESS
+        | A_PROTECTED
     )
 
     defaults = {
@@ -857,9 +879,9 @@ class Times(BinaryOperator, SympyFunction):
         "OutputForm: Times[items__]"
         return self.format_times(items, evaluation, op=" ")
 
-    def apply(self, items, evaluation):
+    def eval(self, items, evaluation):
         "Times[items___]"
-        items = items.numerify(evaluation).get_sequence()
+        items = numerify(items, evaluation).get_sequence()
         elements = []
         numbers = []
         infinity_factor = False

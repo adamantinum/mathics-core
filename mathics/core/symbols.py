@@ -3,8 +3,7 @@
 
 import sympy
 import time
-import typing
-from typing import Any, Optional
+from typing import Any, FrozenSet, List, Optional, Tuple
 
 from mathics.core.element import (
     BaseElement,
@@ -251,7 +250,7 @@ class Atom(BaseElement):
     def get_atom_name(self) -> str:
         return self.__class__.__name__
 
-    def get_atoms(self, include_heads=True) -> typing.List["Atom"]:
+    def get_atoms(self, include_heads=True) -> List["Atom"]:
         return [self]
 
     # We seem to need this because the caller doesn't distinguish something with elements
@@ -296,11 +295,11 @@ class Atom(BaseElement):
 
     @property
     def is_literal(self) -> bool:
-        """
-        True if the value can't change, i.e. a value is set and it does not
-        depend on definition bindings. That is why, in contrast to
-        `is_uncertain_final_definitions()` we don't need a `definitions`
-        parameter.
+        """True if the value can't change and has a Python representation,
+        i.e. a value is set and it does not depend on definition
+        bindings. That is why, in contrast to
+        `is_uncertain_final_definitions()` we don't need a
+        `definitions` parameter.
 
         Most Atoms, like Numbers and Strings, do not need evaluation
         or reevaluation. However some kinds of Atoms like Symbols do
@@ -309,7 +308,7 @@ class Atom(BaseElement):
         it might is literal in general.
 
         """
-        return True
+        return False
 
     def is_uncertain_final_definitions(self, definitions) -> bool:
         """
@@ -323,9 +322,6 @@ class Atom(BaseElement):
         method.
         """
         return False
-
-    def numerify(self, evaluation) -> "Atom":
-        return self
 
     def replace_vars(self, vars, options=None, in_scoping=True) -> "Atom":
         return self
@@ -369,7 +365,7 @@ class Symbol(Atom, NumericOperators, EvalMixin):
 
     # __new__ instead of __init__ is used here because we want
     # to return the same object for a given "name" value.
-    def __new__(cls, name, sympy_dummy=None):
+    def __new__(cls, name, sympy_dummy=None, value=None):
         """
         Allocate an object ensuring that for a given `name` we get back the same object.
         """
@@ -378,7 +374,35 @@ class Symbol(Atom, NumericOperators, EvalMixin):
         if self is None:
             self = super(Symbol, cls).__new__(cls)
             self.name = name
+            # TODO: revise how we convert sympy.Dummy
+            # symbols.
+            #
+            # In some cases, SymPy returns a sympy.Dummy
+            # object. It is converted to Mathics as a
+            # Symbol. However, we probably should have
+            # a different class for this kind of symbols.
+            # Also, sympy_dummy should be stored as the
+            # value attribute.
             self.sympy_dummy = sympy_dummy
+
+            # This is something that still I do not undestand:
+            # here we are adding another attribute to this class,
+            # which is not clear where is it going to be used, but
+            # which can be different to None just three specific instances:
+            #  * ``System`True``  ->   True
+            #  * ``System`False`` -> False
+            #  * ``System`Null`` -> None
+            #
+            # My guess is that this property should be set for
+            # ``PredefinedSymbol`` but not for general symbols.
+            #
+            # Like it is now, it looks so misterious as
+            # self.sympy_dummy, for which I have to dig into the
+            # code to see even what type of value should be expected
+            # for it.
+            self.value = value
+            self._short_name = strip_context(name)
+
             cls.defined_symbols[name] = self
         return self
 
@@ -473,12 +497,13 @@ class Symbol(Atom, NumericOperators, EvalMixin):
     @property
     def is_literal(self) -> bool:
         """
-        True if the value can't change, i.e. a value is set and it does not
-        depend on definition bindings. That is why, in contrast to
-        `is_uncertain_final_definitions()` we don't need a `definitions`
-        parameter.
+        In general, for Atoms its value can change and might not have a Python
+        representation. Symbol is an example of this.
 
-        Here, we have to be pessimistic and return False.
+        So Here, we have to be pessimistic and return False. A number of
+        subclasses, like Integer, Real, String, change the value returned
+        to True.
+
         """
         return False
 
@@ -528,9 +553,6 @@ class Symbol(Atom, NumericOperators, EvalMixin):
                 1,
             )
 
-    def user_hash(self, update) -> None:
-        update(b"System`Symbol>" + self.name.encode("utf8"))
-
     def replace_vars(self, vars, options={}, in_scoping=True):
         assert all(fully_qualified_symbol_name(v) for v in vars)
         var = vars.get(self.name, None)
@@ -543,22 +565,46 @@ class Symbol(Atom, NumericOperators, EvalMixin):
         """Mathics SameQ"""
         return self is rhs
 
-    def to_python(self, *args, **kwargs):
+    @property
+    def short_name(self) -> str:
+        """The symbol name with its context stripped off"""
+        return self._short_name
+
+    def user_hash(self, update) -> None:
+        update(b"System`Symbol>" + self.name.encode("utf8"))
+
+    def to_python(self, *args, python_form: bool = False, **kwargs):
         if self is SymbolTrue:
             return True
         if self is SymbolFalse:
             return False
         if self is SymbolNull:
             return None
+
+        # This was introduced before `mathics.eval.nevaluator.eval_N`
+        # provided a simple way to convert an expression into a number.
+        # Now it makes this routine harder to describe.
         n_evaluation = kwargs.get("n_evaluation")
         if n_evaluation is not None:
-            value = self.create_expression(SymbolN, self).evaluate(n_evaluation)
-            return value.to_python()
+            import warnings
 
-        if kwargs.get("python_form", False):
-            return self.to_sympy(**kwargs)
-        else:
-            return self.name
+            warnings.warn(
+                "use instead ``eval_N(obj, evaluation).to_python()``",
+                DeprecationWarning,
+            )
+
+            from mathics.eval.nevaluator import eval_N
+
+            value = eval_N(self, n_evaluation)
+            if value is not self:
+                return value.to_python()
+
+        # For general symbols, the default behaviour is
+        # to return a 'str'. The reason seems to be
+        # that native (builtin) Python types
+        # are better for being used as keys in
+        # dictionaries.
+        return self.name
 
     def to_sympy(self, **kwargs):
         from mathics.builtin import mathics_to_sympy
@@ -617,28 +663,14 @@ class PredefinedSymbol(Symbol):
         return False
 
 
-# system_symbols('A', 'B', ...) -> [Symbol('System`A'), Symbol('System`B'), ...]
-def system_symbols(*symbols) -> typing.FrozenSet[Symbol]:
+def symbol_set(*symbols: Tuple[Symbol]) -> FrozenSet[Symbol]:
     """
-    Return a frozenset of symbols from a list of names (strings).
+    Return a frozenset of symbols from a Symbol arguments.
     We will use this in testing membership, so an immutable object is fine.
 
     In 2021, we benchmarked frozenset versus list, tuple, and set and frozenset was the fastest.
     """
-    return frozenset(Symbol(s) for s in symbols)
-
-
-# The available formats.
-
-format_symbols = system_symbols(
-    "InputForm",
-    "OutputForm",
-    "StandardForm",
-    "FullForm",
-    "TraditionalForm",
-    "TeXForm",
-    "MathMLForm",
-)
+    return frozenset(symbols)
 
 
 # Symbols used in this module.
@@ -656,9 +688,9 @@ format_symbols = system_symbols(
 # more of the below and in systemsymbols
 # PredefineSymbol.
 
-SymbolFalse = PredefinedSymbol("System`False")
+SymbolFalse = PredefinedSymbol("System`False", value=False)
 SymbolList = PredefinedSymbol("System`List")
-SymbolTrue = PredefinedSymbol("System`True")
+SymbolTrue = PredefinedSymbol("System`True", value=True)
 
 SymbolAbs = Symbol("Abs")
 SymbolDivide = Symbol("Divide")

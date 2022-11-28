@@ -9,27 +9,27 @@ from typing import Any, Callable, Iterable, List, Optional, Tuple, Type
 from itertools import chain
 from bisect import bisect_left
 
-from mathics.core.atoms import Integer, Number, String
+from mathics.core.atoms import Integer, String
 
 # FIXME: adjust mathics.core.attributes to uppercase attribute names
 from mathics.core.attributes import (
-    flat as A_FLAT,
-    hold_all as A_HOLD_ALL,
-    hold_all_complete as A_HOLD_ALL_COMPLETE,
-    hold_first as A_HOLD_FIRST,
-    hold_rest as A_HOLD_REST,
-    listable as A_LISTABLE,
-    no_attributes as A_NO_ATTRIBUTES,
-    numeric_function as A_NUMERIC_FUNCTION,
-    orderless as A_ORDERLESS,
-    sequence_hold as A_SEQUENCE_HOLD,
+    A_FLAT,
+    A_HOLD_ALL,
+    A_HOLD_ALL_COMPLETE,
+    A_HOLD_FIRST,
+    A_HOLD_REST,
+    A_LISTABLE,
+    A_NO_ATTRIBUTES,
+    A_NUMERIC_FUNCTION,
+    A_ORDERLESS,
+    A_SEQUENCE_HOLD,
+    attribute_string_to_number,
 )
 from mathics.core.convert.sympy import sympy_symbol_prefix, SympyExpression
 from mathics.core.convert.python import from_python
 from mathics.core.element import ElementsProperties, EvalMixin, ensure_context
 from mathics.core.evaluation import Evaluation
 from mathics.core.interrupt import ReturnInterrupt
-from mathics.core.number import dps
 from mathics.core.structure import LinkedStructure
 from mathics.core.symbols import (
     Atom,
@@ -37,11 +37,14 @@ from mathics.core.symbols import (
     Monomial,
     NumericOperators,
     Symbol,
+    SymbolAbs,
+    SymbolDivide,
     SymbolList,
     SymbolN,
+    SymbolPlus,
     SymbolTimes,
     SymbolTrue,
-    system_symbols,
+    symbol_set,
 )
 from mathics.core.systemsymbols import (
     SymbolAborted,
@@ -50,9 +53,14 @@ from mathics.core.systemsymbols import (
     SymbolCondition,
     SymbolDirectedInfinity,
     SymbolFunction,
+    SymbolMinus,
     SymbolPattern,
+    SymbolPower,
     SymbolSequence,
+    SymbolSin,
     SymbolSlot,
+    SymbolSqrt,
+    SymbolSubtract,
     SymbolUnevaluated,
 )
 
@@ -70,16 +78,16 @@ SymbolSlotSequence = Symbol("SlotSequence")
 SymbolVerbatim = Symbol("Verbatim")
 
 
-symbols_arithmetic_operations = system_symbols(
-    "Sqrt",
-    "Times",
-    "Plus",
-    "Subtract",
-    "Minus",
-    "Power",
-    "Abs",
-    "Divide",
-    "Sin",
+symbols_arithmetic_operations = symbol_set(
+    SymbolAbs,
+    SymbolDivide,
+    SymbolMinus,
+    SymbolPlus,
+    SymbolPower,
+    SymbolSin,
+    SymbolSqrt,
+    SymbolSubtract,
+    SymbolTimes,
 )
 
 
@@ -184,6 +192,9 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
     positional Arguments:
         - head -- The head of the M-Expression
         - *elements - optional: the remaining elements
+        - *literal_values - optional: if this is not None, then all elements
+                            are (Python) literal values and literal_values
+                            contains these literals.
 
     Keyword Arguments:
         - elements_properties -- properties of the collection of elements
@@ -201,21 +212,23 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         self,
         head: BaseElement,
         *elements: Tuple[BaseElement],
-        elements_properties: Optional[ElementsProperties] = None
+        elements_properties: Optional[ElementsProperties] = None,
+        literal_values: Optional[tuple] = None,
     ):
         self.options = None
         self.pattern_sequence = False
+
+        # # Uncomment to check for errors:
         # assert isinstance(head, BaseElement)
         # assert isinstance(elements, tuple)
         # assert all(isinstance(e, BaseElement) for e in elements)
-        # if head is SymbolList:
-        #     from trepan.api import debug; debug()
+        # assert head is BaseElement
 
         self._head = head
         self._elements = elements
         self.elements_properties = elements_properties
-        #        if elements_properties is None:
-        #            self._build_elements_properties()
+        self.value = literal_values
+        self._is_literal = None if literal_values is None else True
 
         self._sequences = None
         self._cache = None
@@ -254,21 +267,43 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         self.elements_properties = ElementsProperties(True, True, True)
 
         last_element = None
+        values = []
         for element in self._elements:
-            # Test for the three properties mentioned above.
-            if not element.is_literal:
+            # Test for the literalness, and the three properties mentioned above
+            if element.is_literal:
+                values.append(element.value)
+            else:
                 self.elements_properties.elements_fully_evaluated = False
+
             if isinstance(element, Expression):
+
+                # "self" can't be flat.
                 self.elements_properties.is_flat = False
+
+                # "elements_properties" only exists for Expression types
+                # If we haven't set element.elements properties, compute that...
                 if element.elements_properties is None:
                     if hasattr(self, "_is_literal"):
                         self._is_literal = False
                     element._build_elements_properties()
+
+                # and now possibly adjust self.elements_properties.elements_fully_evaluted
                 if self.elements_properties.elements_fully_evaluated:
                     self._elements_fully_evaluated = (
                         element.elements_properties.elements_fully_evaluated
                     )
 
+            if element.is_literal:
+                values.append(element.value)
+            else:
+                # FIXME: uncommenting this out messes up formatting.
+                # File "mathics-core/mathics/core/formatter.py", line 135, in ret_fn
+                # return boxes_to_method(elements, **opts)
+                # TypeError: boxes_to_text() takes 1 positional argument but 2 were given
+                # Why?
+                self.elements_properties.elements_fully_evaluated = False
+
+            # Test for ordered property
             if self.elements_properties.is_ordered and last_element is not None:
                 try:
                     self.elements_properties.is_ordered = last_element <= element
@@ -276,8 +311,11 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
                     self.elements_properties.is_ordered = False
             last_element = element
 
+        # self.is_literal should only be True for ListExpression.
+        # However we have still some Expression(ListSymbol, ...) around?
         if self.is_literal:
             assert self.elements_properties.elements_fully_evaluated
+            self.value = tuple(values)
 
     def _flatten_sequence(self, sequence, evaluation) -> "Expression":
         indices = self.sequences()
@@ -500,6 +538,10 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         return expr
 
     def evaluate_elements(self, evaluation) -> "Expression":
+        """
+        return a new expression with the same head, and the
+        evaluable elements evaluated.
+        """
         elements = [
             element.evaluate(evaluation) if isinstance(element, EvalMixin) else element
             for element in self._elements
@@ -617,13 +659,22 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         return atoms
 
     def get_attributes(self, definitions):
-        if self._head is SymbolFunction and len(self._elements) > 2:
+        result = A_NO_ATTRIBUTES
+        # Maybe this deserves to specialize Function
+        if self._head is SymbolFunction and len(self._elements) == 3:
             res = self._elements[2]
-            if isinstance(res, Symbol):
-                return (str(res),)
-            elif res.has_form("List", None):
-                return set(str(a) for a in res._elements)
-        return A_NO_ATTRIBUTES
+            if res.has_form("List", None):
+                attributes = res._elements
+            else:
+                attributes = (res,)
+            for attrib in attributes:
+                if not isinstance(attrib, Symbol):
+                    # if we had here an evaluation object, instead of
+                    # a definition
+                    # evaluation.message("Attributes","attnf", a)
+                    continue
+                result = result | attribute_string_to_number.get(attrib.name, 0)
+        return result
 
     def get_elements(self):
         # print("Use of get_elements is deprecated. Use elements instead.")
@@ -1352,7 +1403,9 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
         """
         from mathics.builtin.base import mathics_to_python
 
-        n_evaluation = kwargs.get("n_evaluation")
+        n_evaluation = kwargs.get("n_evaluation", None)
+        assert n_evaluation is None
+
         head = self._head
         if head is SymbolFunction:
 
@@ -1386,6 +1439,9 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
             #         keywords=[],
             #         )
             return py_obj
+
+        # Notice that in this case, `to_python` returns a Mathics Expression object,
+        # instead of a builtin native object.
         return self
 
     def to_sympy(self, **kwargs):
@@ -1571,7 +1627,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
             *[
                 element.replace_vars(vars, options=options, in_scoping=in_scoping)
                 for element in elements
-            ]
+            ],
         )
 
     def replace_slots(self, slots, evaluation):
@@ -1602,7 +1658,7 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
             return self
         return Expression(
             self._head.replace_slots(slots, evaluation),
-            *[element.replace_slots(slots, evaluation) for element in self._elements]
+            *[element.replace_slots(slots, evaluation) for element in self._elements],
         )
 
     def thread(self, evaluation, head=None) -> Tuple[bool, "Expression"]:
@@ -1660,55 +1716,6 @@ class Expression(BaseElement, NumericOperators, EvalMixin):
             return self._head in symbols_arithmetic_operations and all(
                 element.is_numeric() for element in self._elements
             )
-
-    def numerify(self, evaluation) -> "BaseElement":
-        """
-        Produces a new expression equivalent to the original,
-        s.t. inexact numeric elements are reduced to Real numbers with
-        the same precision.
-        This is used in arithmetic evaluations (like `Plus`, `Times`, and `Power` )
-        and in iterators.
-        """
-        _prec = None
-        for element in self._elements:
-            if element.is_inexact():
-                element_prec = element.get_precision()
-                if _prec is None or element_prec < _prec:
-                    _prec = element_prec
-        if _prec is not None:
-            new_elements = self.get_mutable_elements()
-            for index in range(len(new_elements)):
-                element = new_elements[index]
-                # Don't "numerify" numbers: they should be numerified
-                # automatically by the processing function,
-                # and we don't want to lose exactness in e.g. 1.0+I.
-                # Also, for compatibility with WMA, numerify just the elements
-                # s.t. ``NumericQ[element]==True``
-                if not isinstance(element, Number) and element.is_numeric(evaluation):
-                    n_expr = Expression(SymbolN, element, Integer(dps(_prec)))
-                    n_result = (
-                        n_expr.evaluate(evaluation)
-                        if isinstance(n_expr, EvalMixin)
-                        else n_expr
-                    )
-                    if isinstance(n_result, Number):
-                        new_elements[index] = n_result
-                        continue
-                    # If Nvalues are not available, just tries to do
-                    # a regular evaluation
-                    n_result = (
-                        element.evaluate(evaluation)
-                        if isinstance(element, EvalMixin)
-                        else element
-                    )
-                    if isinstance(n_result, Number):
-                        new_elements[index] = n_result
-            result = Expression(self._head)
-            result.elements = new_elements
-            return result
-
-        else:
-            return self
 
     def user_hash(self, update):
         update(("%s>%d>" % (self.get_head_name(), len(self._elements))).encode("utf8"))
@@ -1866,25 +1873,35 @@ def atom_list_constructor(evaluation, head, *atom_names):
 # Note: this function is called a *lot* so it needs to be fast.
 def convert_expression_elements(
     elements: Iterable, conversion_fn: Callable = from_python
-) -> Tuple[tuple, ElementsProperties]:
+) -> Tuple[tuple, ElementsProperties, Optional[tuple]]:
     """
-    Convert and return tuple of Elements from the Python-like items in `elements`,
-    along with elements properties of the elements tuple.
+    Convert and return tuple of Elements from the Python-like items in
+    `elements`, along with elements properties of the elements tuple,
+    and a tuple of literal values if it elements are all literal
+    otherwise, None.
 
     The return information is suitable for use to the Expression() constructor.
+
     """
 
     # All of the properties start out optimistic (True) and are reset when that proves wrong.
     elements_properties = ElementsProperties(True, True, True)
+
+    is_literal = True
+    values = []  # If is_literal, "values" contains the (Python) literal values
 
     result = []
     last_converted_elt = None
     for element in elements:
         converted_elt = conversion_fn(element)
 
-        # Test for the three properties mentioned above.
-        if not converted_elt.is_literal:
+        # Test for the three properties mentioned above and literalness.
+        if is_literal and converted_elt.is_literal:
+            values.append(converted_elt.value)
+        else:
             elements_properties.elements_fully_evaluated = False
+            is_literal = False
+
         if isinstance(converted_elt, Expression):
             elements_properties.is_flat = False
             if converted_elt.elements_properties is None:
@@ -1903,7 +1920,8 @@ def convert_expression_elements(
         last_converted_elt = converted_elt
         result.append(converted_elt)
 
-    return tuple(result), elements_properties
+    final_values = tuple(values) if is_literal else None
+    return tuple(result), elements_properties, final_values
 
 
 def string_list(head, elements, evaluation):
