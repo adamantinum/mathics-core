@@ -1,32 +1,27 @@
 # -*- coding: utf-8 -*-
 
 """
+Layout
+
 This module contains symbols used to define the high level layout for
 expression formatting.
 
 For instance, to represent a set of consecutive expressions in a row,
-we can use ``Row``
+we can use 'Row'.
 
 """
 
 
-from mathics.builtin.base import (
-    Builtin,
-    BinaryOperator,
-    Operator,
-)
+from mathics.builtin.base import BinaryOperator, Builtin, Operator
 from mathics.builtin.box.layout import GridBox, RowBox, to_boxes
 from mathics.builtin.lists import list_boxes
 from mathics.builtin.makeboxes import MakeBoxes
 from mathics.builtin.options import options_to_rules
-
 from mathics.core.atoms import Real, String
-
-from mathics.core.expression import Expression
+from mathics.core.expression import Evaluation, Expression
 from mathics.core.list import ListExpression
 from mathics.core.symbols import Symbol
 from mathics.core.systemsymbols import SymbolMakeBoxes
-
 from mathics.eval.makeboxes import format_element
 
 SymbolSubscriptBox = Symbol("System`SubscriptBox")
@@ -34,6 +29,8 @@ SymbolSubscriptBox = Symbol("System`SubscriptBox")
 
 class Center(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Center.html</url>
+
     <dl>
       <dt>'Center'
       <dd>is used with the 'ColumnAlignments' option to 'Grid' or
@@ -46,6 +43,8 @@ class Center(Builtin):
 
 class Format(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Format.html</url>
+
     <dl>
       <dt>'Format[$expr$]'
       <dd>holds values specifying how $expr$ should be printed.
@@ -80,6 +79,8 @@ class Format(Builtin):
 
 class Grid(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Grid.html</url>
+
     <dl>
       <dt>'Grid[{{$a1$, $a2$, ...}, {$b1$, $b2$, ...}, ...}]'
       <dd>formats several expressions inside a 'GridBox'.
@@ -94,7 +95,7 @@ class Grid(Builtin):
     options = GridBox.options
     summary_text = " 2D layout containing arbitrary objects"
 
-    def apply_makeboxes(self, array, f, evaluation, options) -> Expression:
+    def eval_makeboxes(self, array, f, evaluation, options) -> Expression:
         """MakeBoxes[Grid[array_?MatrixQ, OptionsPattern[Grid]],
         f:StandardForm|TraditionalForm|OutputForm]"""
         return GridBox(
@@ -112,6 +113,8 @@ class Grid(Builtin):
 
 class Infix(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Infix.html</url>
+
     <dl>
       <dt>'Infix[$expr$, $oper$, $prec$, $assoc$]'
       <dd>displays $expr$ with the infix operator $oper$, with precedence $prec$ and associativity $assoc$.
@@ -151,6 +154,8 @@ class Infix(Builtin):
 
 class Left(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Left.html</url>
+
     <dl>
       <dt>'Left'
       <dd>is used with operator formatting constructs to specify a left-associative operator.
@@ -162,10 +167,14 @@ class Left(Builtin):
 
 class NonAssociative(Builtin):
     """
-    <dl>
-      <dt>'NonAssociative'
-      <dd>is used with operator formatting constructs to specify a non-associative operator.
-    </dl>
+        ## For some reason, this is a Builtin symbol in WMA, but it is not available in WR.
+        ## <url>:WMA link:https://reference.wolfram.com/language/ref/NonAssociative.html</url>
+    on, logic, comparison, datentime, attributes and binary)
+
+        <dl>
+          <dt>'NonAssociative'
+          <dd>is used with operator formatting constructs to specify a non-associative operator.
+        </dl>
     """
 
     summary_text = "non-associative operator"
@@ -173,6 +182,8 @@ class NonAssociative(Builtin):
 
 class Postfix(BinaryOperator):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Postfix.html</url>
+
     <dl>
       <dt>'$x$ // $f$'
       <dd>is equivalent to '$f$[$x$]'.
@@ -197,27 +208,31 @@ class Postfix(BinaryOperator):
 
 class Precedence(Builtin):
     """
-    <dl>
-      <dt>'Precedence[$op$]'
-      <dd>returns the precedence of the built-in operator $op$.
-    </dl>
+        ## As NonAssociative, this is a Builtin in WMA that does not have an entry in WR.
+        ## <url>:WMA link:https://reference.wolfram.com/language/ref/Precedence.html</url>
+    on, logic, comparison, datentime, attributes and binary)
 
-    >> Precedence[Plus]
-     = 310.
-    >> Precedence[Plus] < Precedence[Times]
-     = True
+        <dl>
+          <dt>'Precedence[$op$]'
+          <dd>returns the precedence of the built-in operator $op$.
+        </dl>
 
-    Unknown symbols have precedence 670:
-    >> Precedence[f]
-     = 670.
-    Other expressions have precedence 1000:
-    >> Precedence[a + b]
-     = 1000.
+        >> Precedence[Plus]
+         = 310.
+        >> Precedence[Plus] < Precedence[Times]
+         = True
+
+        Unknown symbols have precedence 670:
+        >> Precedence[f]
+         = 670.
+        Other expressions have precedence 1000:
+        >> Precedence[a + b]
+         = 1000.
     """
 
     summary_text = "an object to be parenthesized with a given precedence level"
 
-    def apply(self, expr, evaluation) -> Real:
+    def eval(self, expr, evaluation) -> Real:
         "Precedence[expr_]"
 
         name = expr.get_name()
@@ -235,6 +250,8 @@ class Precedence(Builtin):
 
 class Prefix(BinaryOperator):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Prefix.html</url>
+
     <dl>
       <dt>'$f$ @ $x$'
       <dd>is equivalent to '$f$[$x$]'.
@@ -269,6 +286,8 @@ class Prefix(BinaryOperator):
 
 class Right(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Right.html</url>
+
     <dl>
       <dt>'Right'
       <dd>is used with operator formatting constructs to specify a right-associative operator.
@@ -280,6 +299,8 @@ class Right(Builtin):
 
 class Row(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Row.html</url>
+
     <dl>
       <dt>'Row[{$expr$, ...}]'
       <dd>formats several expressions inside a 'RowBox'.
@@ -288,7 +309,7 @@ class Row(Builtin):
 
     summary_text = "1D layouts containing arbitrary objects in a row"
 
-    def apply_makeboxes(self, items, sep, f, evaluation):
+    def eval_makeboxes(self, items, sep, f, evaluation: Evaluation):
         """MakeBoxes[Row[{items___}, sep_:""],
         f:StandardForm|TraditionalForm|OutputForm]"""
 
@@ -310,6 +331,8 @@ class Row(Builtin):
 
 class Style(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Style.html</url>
+
     <dl>
       <dt>'Style[$expr$, options]'
       <dd>displays $expr$ formatted using the specified option settings.
@@ -348,6 +371,10 @@ class Style(Builtin):
 
 class Subscript(Builtin):
     """
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/Subscript.html</url>
+
     <dl>
       <dt>'Subscript[$a$, $i$]'
       <dd>displays as $a_i$.
@@ -359,7 +386,7 @@ class Subscript(Builtin):
 
     summary_text = "format an expression with a subscript"
 
-    def apply_makeboxes(self, x, y, f, evaluation) -> Expression:
+    def eval_makeboxes(self, x, y, f, evaluation) -> Expression:
         "MakeBoxes[Subscript[x_, y__], f:StandardForm|TraditionalForm]"
 
         y = y.get_sequence()
@@ -372,6 +399,8 @@ class Subscript(Builtin):
 
 class Subsuperscript(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Subsuperscript.html</url>
+
     <dl>
       <dt>'Subsuperscript[$a$, $b$, $c$]'
       <dd>displays as $a_b^c$.
@@ -392,6 +421,8 @@ class Subsuperscript(Builtin):
 
 class Superscript(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Superscript.html</url>
+
     <dl>
       <dt>'Superscript[$x$, $y$]'
       <dd>displays as $x$^$y$.

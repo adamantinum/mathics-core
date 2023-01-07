@@ -9,16 +9,24 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Union, cast
 
 import sympy
 
-from mathics.core.exceptions import MessageException
-from mathics.core.atoms import Integer, MachineReal, PrecisionReal, String
-from mathics.core.attributes import A_NO_ATTRIBUTES, A_PROTECTED, A_READ_PROTECTED
+from mathics.core.atoms import (
+    Integer,
+    Integer0,
+    Integer1,
+    MachineReal,
+    Number,
+    PrecisionReal,
+    String,
+)
+from mathics.core.attributes import A_HOLD_ALL, A_NO_ATTRIBUTES, A_PROTECTED
 from mathics.core.convert.expression import to_expression, to_numeric_sympy_args
 from mathics.core.convert.op import ascii_operator_to_symbol
 from mathics.core.convert.python import from_bool
 from mathics.core.convert.sympy import from_sympy
 from mathics.core.definitions import Definition
-from mathics.core.element import BoxElementMixin
+from mathics.core.exceptions import MessageException
 from mathics.core.expression import Expression, SymbolDefault
+from mathics.core.interrupt import BreakInterrupt, ContinueInterrupt, ReturnInterrupt
 from mathics.core.list import ListExpression
 from mathics.core.number import PrecisionValueError, get_precision
 from mathics.core.parser.util import PyMathicsDefinitions, SystemDefinitions
@@ -26,11 +34,23 @@ from mathics.core.rules import BuiltinRule, Pattern, Rule
 from mathics.core.symbols import (
     BaseElement,
     Symbol,
-    SymbolHoldForm,
+    SymbolFalse,
+    SymbolPlus,
+    SymbolTrue,
     ensure_context,
     strip_context,
 )
-from mathics.core.systemsymbols import SymbolMessageName, SymbolRule
+from mathics.core.systemsymbols import (
+    SymbolGreaterEqual,
+    SymbolLess,
+    SymbolLessEqual,
+    SymbolMessageName,
+    SymbolRule,
+    SymbolSequence,
+)
+from mathics.eval.numbers import cancel
+from mathics.eval.numerify import numerify
+from mathics.eval.scoping import dynamic_scoping
 
 # Signals to Mathics doc processing not to include this module in its documentation.
 no_doc = True
@@ -75,28 +95,6 @@ def has_option(options, name, evaluation):
     return get_option(options, name, evaluation, evaluate=False) is not None
 
 
-def split_name(name: str) -> str:
-    """
-    insert spaces in front of upper case letters
-    and numbers. For instance,
-    ``split_name("BezierCurve3D")`` results in
-    ``"bezier curve 3D"``
-
-    """
-    if name == "":
-        return ""
-    result = name[0]
-    for i in range(1, len(name)):
-        if name[i].isupper():
-            if not name[i - 1].isdigit():
-                result = result + " "
-        elif name[i].isdigit():
-            if not name[i - 1].isdigit():
-                result = result + " "
-        result = result + name[i]
-    return result.lower()
-
-
 mathics_to_python = {}  # here we have: name -> string
 
 
@@ -113,13 +111,13 @@ class Builtin:
     Function application pattern matching
     -------------------------------------
 
-    Method names of a builtin-class that start with the word ``apply`` are evaluation methods that
+    Method names of a builtin-class that start with the word ``eval`` are evaluation methods that
     will get called when the docstring of that method matches the expression to be evaluated.
 
     For example:
 
     ```
-        def apply(x, evaluation):
+        def eval(x, evaluation):
              "F[x_Real]"
              return Expression(Symbol("G"), x*2)
     ```
@@ -132,16 +130,16 @@ class Builtin:
     ``x``. The method must also have an evaluation parameter, and may
     have an optional `options` parameter.
 
-    If the ``apply*`` method returns ``None``, the replacement fails, and the expression keeps its original form.
+    If the ``eval*`` method returns ``None``, the replacement fails, and the expression keeps its original form.
 
     For rules including ``OptionsPattern``
     ```
-        def apply_with_options(x, evaluation, options):
+        def eval_with_options(x, evaluation, options):
              '''F[x_Real, OptionsPattern[]]'''
              ...
     ```
     the options are stored as a dictionary in the last parameter. For example, if the rule is applied to ``F[x, Method->Automatic]``
-    the expression is replaced by the output of ``apply_with_options(x, evaluation, {"System`Method": Symbol("Automatic")})
+    the expression is replaced by the output of ``eval_with_options(x, evaluation, {"System`Method": Symbol("Automatic")})
 
     The method ``contribute`` stores the definition of the  ``Builtin`` ` `Symbol`` into a set of ``Definitions``. For example,
 
@@ -447,7 +445,7 @@ class Builtin:
     def _get_unavailable_function(self) -> Optional[Callable]:
         """
         If some of the required libraries for a symbol are not available,
-        returns a default function that override the ``apply_`` methods
+        returns a default function that override the ``eval_`` methods
         of the class. Otherwise, returns ``None``.
         """
 
@@ -517,13 +515,212 @@ class AtomBuiltin(Builtin):
     have the Builtin function/variable/object properties.
     """
 
-    # allows us to define apply functions, rules, messages, etc. for Atoms
+    # allows us to define eval functions, rules, messages, etc. for Atoms
     # which are by default not in the definitions' contribution pipeline.
     # see Image[] for an example of this.
 
     def get_name(self, short=False) -> str:
         name = super().get_name(short=short)
         return re.sub(r"Atom$", "", name)
+
+
+class IterationFunction(Builtin):
+    attributes = A_HOLD_ALL | A_PROTECTED
+    allow_loopcontrol = False
+    throw_iterb = True
+
+    def get_result(self, items):
+        pass
+
+    def eval_symbol(self, expr, iterator, evaluation):
+        "%(name)s[expr_, iterator_Symbol]"
+        iterator = iterator.evaluate(evaluation)
+        if iterator.has_form(["List", "Range", "Sequence"], None):
+            elements = iterator.elements
+            if len(elements) == 1:
+                return self.apply_max(expr, *elements, evaluation)
+            elif len(elements) == 2:
+                if elements[1].has_form(["List", "Sequence"], None):
+                    seq = Expression(SymbolSequence, *(elements[1].elements))
+                    return self.eval_list(expr, elements[0], seq, evaluation)
+                else:
+                    return self.eval_range(expr, *elements, evaluation)
+            elif len(elements) == 3:
+                return self.eval_iter_nostep(expr, *elements, evaluation)
+            elif len(elements) == 4:
+                return self.eval_iter(expr, *elements, evaluation)
+
+        if self.throw_iterb:
+            evaluation.message(self.get_name(), "iterb")
+        return
+
+    def eval_range(self, expr, i, imax, evaluation):
+        "%(name)s[expr_, {i_Symbol, imax_}]"
+        imax = imax.evaluate(evaluation)
+        if imax.has_form("Range", None):
+            # FIXME: this should work as an iterator in Python3, not
+            # building the sequence explicitly...
+            seq = Expression(SymbolSequence, *(imax.evaluate(evaluation).elements))
+            return self.apply_list(expr, i, seq, evaluation)
+        elif imax.has_form("List", None):
+            seq = Expression(SymbolSequence, *(imax.elements))
+            return self.eval_list(expr, i, seq, evaluation)
+        else:
+            return self.eval_iter(expr, i, Integer1, imax, Integer1, evaluation)
+
+    def eval_max(self, expr, imax, evaluation):
+        "%(name)s[expr_, {imax_}]"
+
+        # Even though `imax` should be an integeral value, its type does not
+        # have to be an Integer.
+
+        result = []
+
+        def do_iteration():
+            evaluation.check_stopped()
+            try:
+                result.append(expr.evaluate(evaluation))
+            except ContinueInterrupt:
+                if self.allow_loopcontrol:
+                    pass
+                else:
+                    raise
+            except BreakInterrupt:
+                if self.allow_loopcontrol:
+                    raise StopIteration
+                else:
+                    raise
+            except ReturnInterrupt as e:
+                if self.allow_loopcontrol:
+                    return e.expr
+                else:
+                    raise
+
+        if isinstance(imax, Integer):
+            try:
+                for _ in range(imax.value):
+                    do_iteration()
+            except StopIteration:
+                pass
+
+        else:
+            imax = imax.evaluate(evaluation)
+            imax = numerify(imax, evaluation)
+            if isinstance(imax, Number):
+                imax = imax.round()
+            py_max = imax.get_float_value()
+            if py_max is None:
+                if self.throw_iterb:
+                    evaluation.message(self.get_name(), "iterb")
+                return
+
+            index = 0
+            try:
+                while index < py_max:
+                    do_iteration()
+                    index += 1
+            except StopIteration:
+                pass
+
+        return self.get_result(result)
+
+    def eval_iter_nostep(self, expr, i, imin, imax, evaluation):
+        "%(name)s[expr_, {i_Symbol, imin_, imax_}]"
+        return self.eval_iter(expr, i, imin, imax, Integer1, evaluation)
+
+    def eval_iter(self, expr, i, imin, imax, di, evaluation):
+        "%(name)s[expr_, {i_Symbol, imin_, imax_, di_}]"
+
+        if isinstance(self, SympyFunction) and di.get_int_value() == 1:
+            whole_expr = to_expression(
+                self.get_name(), expr, ListExpression(i, imin, imax)
+            )
+            sympy_expr = whole_expr.to_sympy(evaluation=evaluation)
+            if sympy_expr is None:
+                return None
+
+            # apply Together to produce results similar to Mathematica
+            result = sympy.together(sympy_expr)
+            result = from_sympy(result)
+            result = cancel(result)
+
+            if not result.sameQ(whole_expr):
+                return result
+            return
+
+        index = imin.evaluate(evaluation)
+        imax = imax.evaluate(evaluation)
+        di = di.evaluate(evaluation)
+
+        result = []
+        compare_type = (
+            SymbolGreaterEqual
+            if Expression(SymbolLess, di, Integer0).evaluate(evaluation).to_python()
+            else SymbolLessEqual
+        )
+        while True:
+            cont = Expression(compare_type, index, imax).evaluate(evaluation)
+            if cont is SymbolFalse:
+                break
+            if cont is not SymbolTrue:
+                if self.throw_iterb:
+                    evaluation.message(self.get_name(), "iterb")
+                return
+
+            evaluation.check_stopped()
+            try:
+                item = dynamic_scoping(expr.evaluate, {i.name: index}, evaluation)
+                result.append(item)
+            except ContinueInterrupt:
+                if self.allow_loopcontrol:
+                    pass
+                else:
+                    raise
+            except BreakInterrupt:
+                if self.allow_loopcontrol:
+                    break
+                else:
+                    raise
+            except ReturnInterrupt as e:
+                if self.allow_loopcontrol:
+                    return e.expr
+                else:
+                    raise
+            index = Expression(SymbolPlus, index, di).evaluate(evaluation)
+        return self.get_result(result)
+
+    def eval_list(self, expr, i, items, evaluation):
+        "%(name)s[expr_, {i_Symbol, {items___}}]"
+        items = items.evaluate(evaluation).get_sequence()
+        result = []
+        for item in items:
+            evaluation.check_stopped()
+            try:
+                item = dynamic_scoping(expr.evaluate, {i.name: item}, evaluation)
+                result.append(item)
+            except ContinueInterrupt:
+                if self.allow_loopcontrol:
+                    pass
+                else:
+                    raise
+            except BreakInterrupt:
+                if self.allow_loopcontrol:
+                    break
+                else:
+                    raise
+            except ReturnInterrupt as e:
+                if self.allow_loopcontrol:
+                    return e.expr
+                else:
+                    raise
+        return self.get_result(result)
+
+    def eval_multi(self, expr, first, sequ, evaluation):
+        "%(name)s[expr_, first_, sequ__]"
+
+        sequ = sequ.get_sequence()
+        name = self.get_name()
+        return to_expression(name, to_expression(name, expr, *sequ), first)
 
 
 class Operator(Builtin):
@@ -643,7 +840,7 @@ class BinaryOperator(Operator):
 
 
 class Test(Builtin):
-    def apply(self, expr, evaluation) -> Optional[Symbol]:
+    def eval(self, expr, evaluation) -> Optional[Symbol]:
         "%(name)s[expr_]"
         test_expr = self.test(expr)
         return None if test_expr is None else from_bool(bool(test_expr))
@@ -659,11 +856,11 @@ def run_sympy(sympy_fn: Callable, *sympy_args) -> Any:
 
 
 class SympyFunction(SympyObject):
-    def apply(self, z, evaluation):
+    def eval(self, z, evaluation):
         # Note: we omit a docstring here, so as not to confuse
         # function signature collector ``contribute``.
 
-        # Generic apply method that uses the class sympy_name.
+        # Generic eval method that uses the class sympy_name.
         # to call the corresponding sympy function. Arguments are
         # converted to python and the result is converted from sympy
         #
@@ -713,162 +910,6 @@ class SympyFunction(SympyObject):
 
     def prepare_mathics(self, sympy_expr):
         return sympy_expr
-
-
-class BoxExpression(BuiltinElement, BoxElementMixin):
-    # This is the base class for the "Final form"
-    # of formatted expressions.
-    #
-    # These objects should not be evaluated, so in the evaluation process should be
-    # considered "inert". However, it could happend that an Expression having them as an element
-    # be evaluable, and try to apply rules. For example,
-    # InputForm[ToBoxes[a+b]]
-    # should be evaluated to ``Expression(SymbolRowBox, '"a"', '"+"', '"b"')``.
-    #
-    # Changes to do, after the refactor of mathics.core:
-    #
-
-    # * Review the implementation
-
-    attributes = A_PROTECTED | A_READ_PROTECTED
-
-    def __new__(cls, *elements, **kwargs):
-        instance = super().__new__(cls, *elements, **kwargs)
-        # This should not be here.
-        article = (
-            "an "
-            if instance.get_name()[0].lower() in ("a", "e", "i", "o", "u")
-            else "a "
-        )
-
-        instance.summary_text = (
-            "box representation for "
-            + article
-            + split_name(cls.get_name(short=True)[:-3])
-        )
-        if not instance.__doc__:
-            instance.__doc__ = rf"""
-            <dl>
-              <dt>'{instance.get_name()}'
-              <dd> box structure.
-            </dl>
-            """
-
-        # the __new__ method from BuiltinElement
-        # calls self.init. It is expected that it set
-        # self._elements. However, if it didn't happens,
-        # we set it with a default value.
-        # There should be a better way to implement this
-        # behaviour...
-        if not hasattr(instance, "_elements"):
-            instance._elements = tuple(elements)
-        return instance
-
-    @property
-    def is_literal(self) -> bool:
-        """
-        True if the value can't change, i.e. a value is set and it does not
-        depend on definition bindings. That is why, in contrast to
-        `is_uncertain_final_definitions()` we don't need a `definitions`
-        parameter.
-        """
-        return False
-
-    @property
-    def elements(self):
-        return self._elements
-
-    @elements.setter
-    def elements(self, value):
-        self._elements = value
-        return self._elements
-
-    def tex_block(self, tex, only_subsup=False):
-        if len(tex) == 1:
-            return tex
-        else:
-            if not only_subsup or "_" in tex or "^" in tex:
-                return "{%s}" % tex
-            else:
-                return tex
-
-    def to_expression(self) -> Expression:
-        # FIXME: All classes should store their symbol name.
-        # So there should be a self.head.
-        return Expression(Symbol(self.get_name()), *self._elements)
-
-    def replace_vars(self, vars, options=None, in_scoping=True, in_function=True):
-        expr = self.to_expression()
-        result = expr.replace_vars(vars, options, in_scoping, in_function)
-        return result
-
-    # Deprecated: remove eventually
-    def get_elements(self):
-        return self._elements
-
-    def get_head_name(self):
-        return self.get_name()
-
-    def get_lookup_name(self):
-        return self.get_name()
-
-    def get_sort_key(self) -> tuple:
-        return self.to_expression().get_sort_key()
-
-    def get_string_value(self):
-        return "-@" + self.get_head_name() + "@-"
-
-    def sameQ(self, expr) -> bool:
-        """Mathics SameQ"""
-        return expr.sameQ(self)
-
-    def do_format(self, evaluation, format):
-        return self
-
-    def format(self, evaluation, fmt):
-        expr = Expression(SymbolHoldForm, self.to_expression())
-        fexpr = expr.format(evaluation, fmt)
-        return fexpr
-
-    def get_head(self):
-        return Symbol(self.get_name())
-
-    @property
-    def head(self):
-        return self.get_head()
-
-    @head.setter
-    def head(self, value):
-        raise ValueError("BoxExpression.head is write protected.")
-
-    @property
-    def leaves(self):
-        return self.get_elements()
-
-    @leaves.setter
-    def leaves(self, value):
-        raise ValueError("BoxExpression.elements is write protected.")
-
-    def flatten_pattern_sequence(self, evaluation) -> "BoxExpression":
-        return self
-
-    def flatten_with_respect_to_head(self, symbol):
-        return self.to_expression().flatten_with_respect_to_head(symbol)
-
-    def get_option_values(self, elements, **options):
-        evaluation = options.get("evaluation", None)
-        if evaluation:
-            default = evaluation.definitions.get_options(self.get_name()).copy()
-            options = ListExpression(*elements).get_option_values(evaluation)
-            default.update(options)
-        else:
-            from mathics.core.parser import parse_builtin_rule
-
-            default = {}
-            for option, value in self.options.items():
-                option = ensure_context(option)
-                default[option] = parse_builtin_rule(value)
-        return default
 
 
 class PatternError(Exception):
@@ -1031,7 +1072,3 @@ class CountableInteger:
                             return CountableInteger(0, upper_limit=True)
 
         return None  # leave original expression unevaluated
-
-
-# Backward compatibility
-BoxConstruct = BoxExpression

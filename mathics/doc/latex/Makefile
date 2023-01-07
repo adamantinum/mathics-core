@@ -1,4 +1,4 @@
-.PHONY: all clean doc doc-data latex texdoc
+.PHONY: all clean doc doc-data latex pdf texdoc
 
 PYTHON ?= python
 XETEX ?= xelatex
@@ -13,7 +13,7 @@ all doc texdoc: mathics.pdf
 
 #: Create internal Document Data from .mdoc and Python builtin module docstrings
 doc-data $(DOC_TEX_DATA_PCL):
-	(cd ../.. && MATHICS_CHARACTER_ENCODING="ASCII" $(PYTHON) docpipeline.py --output --keep-going --want-sorting)
+	(cd ../.. && MATHICS_CHARACTER_ENCODING="" $(PYTHON) docpipeline.py --output --keep-going --want-sorting)
 
 #: Build mathics PDF
 mathics.pdf: mathics.tex documentation.tex logo-text-nodrop.pdf logo-heptatom.pdf version-info.tex $(DOC_TEX_DATA_PCL)
@@ -37,7 +37,7 @@ documentation.tex: $(DOC_TEX_DATA_PCL)
 	$(PYTHON) ./doc2latex.py
 
 #: Same as mathics.pdf
-latex: mathics.pdf
+pdf latex: mathics.pdf
 
 #: Remove all auto-generated files
 clean:

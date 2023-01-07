@@ -9,17 +9,15 @@ import os.path as osp
 import pickle
 import subprocess
 import sys
-
 from argparse import ArgumentParser
+
 from mpmath import __version__ as mpmathVersion
 from numpy import __version__ as NumPyVersion
 from sympy import __version__ as SymPyVersion
 
 import mathics
-
-from mathics import version_string, __version__
-from mathics import settings
-from mathics.doc.common_doc import MathicsMainDocumentation
+from mathics import __version__, settings, version_string
+from mathics.doc.latex_doc import LaTeXMathicsMainDocumentation
 
 # Global variables
 logfile = None
@@ -95,7 +93,7 @@ def get_versions():
 def write_latex(
     doc_data, quiet=False, filter_parts=None, filter_chapters=None, filter_sections=None
 ):
-    documentation = MathicsMainDocumentation()
+    documentation = LaTeXMathicsMainDocumentation()
     if not quiet:
         print(f"Writing LaTeX document to {DOC_LATEX_FILE}")
     with open_ensure_dir(DOC_LATEX_FILE, "wb") as doc:

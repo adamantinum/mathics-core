@@ -33,11 +33,13 @@ import platform
 import re
 import sys
 
-from setuptools import setup, Extension
+from setuptools import Extension, setup
 
-is_PyPy = platform.python_implementation() == "PyPy"
+is_PyPy = platform.python_implementation() == "PyPy" or hasattr(
+    sys, "pypy_version_info"
+)
 
-INSTALL_REQUIRES = ["Mathics-Scanner >= 1.3.0.dev0"]
+INSTALL_REQUIRES = ["Mathics-Scanner >= 1.3.0.dev0", "pillow"]
 
 # Ensure user has the correct Python version
 # Address specific package dependencies based on Python version
@@ -47,20 +49,18 @@ if sys.version_info < (3, 6):
 elif sys.version_info[:2] == (3, 6):
     INSTALL_REQUIRES += [
         "recordclass",
-        "numpy<1.24",
+        "numpy",
         "llvmlite<0.37",
-        "sympy>=1.8,<1.9",
+        "sympy>=1.8,<1.12",
     ]
     if is_PyPy:
         print("Mathics does not support PyPy Python 3.6" % sys.version_info[:2])
         sys.exit(-1)
-elif sys.version_info[:2] == (3, 7):
-    INSTALL_REQUIRES += ["numpy<1.22", "llvmlite", "sympy>=1.8, < 1.11"]
 else:
-    INSTALL_REQUIRES += ["numpy", "llvmlite", "sympy>=1.8, < 1.11"]
+    INSTALL_REQUIRES += ["numpy<=1.24", "llvmlite", "sympy>=1.8, < 1.12"]
 
-if not is_PyPy:
-    INSTALL_REQUIRES += ["recordclass"]
+# if not is_PyPy:
+#     INSTALL_REQUIRES += ["recordclass"]
 
 
 def get_srcdir():
@@ -173,11 +173,13 @@ setup(
         "mathics.builtin.box",
         "mathics.builtin.colors",
         "mathics.builtin.distance",
+        "mathics.builtin.exp_structure",
         "mathics.builtin.drawing",
         "mathics.builtin.fileformats",
         "mathics.builtin.files_io",
         "mathics.builtin.forms",
         "mathics.builtin.functional",
+        "mathics.builtin.image",
         "mathics.builtin.intfns",
         "mathics.builtin.list",
         "mathics.builtin.matrices",

@@ -3,30 +3,28 @@
 """
 Associations
 
-An Association maps keys to values and is similar to a dictionary in Python; it is often sparse in that their key space is much larger than the number of actual keys found in the collection.
+An Association maps keys to values and is similar to a dictionary in Python; \
+it is often sparse in that their key space is much larger than the number of \
+actual keys found in the collection.
 """
 
 
-from mathics.builtin.base import (
-    Builtin,
-    Test,
-)
+from mathics.builtin.base import Builtin, Test
 from mathics.builtin.box.layout import RowBox
 from mathics.builtin.lists import list_boxes
 from mathics.core.atoms import Integer
 from mathics.core.attributes import A_HOLD_ALL_COMPLETE, A_PROTECTED
 from mathics.core.convert.expression import to_mathics_list
+from mathics.core.evaluation import Evaluation
 from mathics.core.expression import Expression
 from mathics.core.symbols import Symbol, SymbolTrue
-from mathics.core.systemsymbols import (
-    SymbolAssociation,
-    SymbolMakeBoxes,
-    SymbolMissing,
-)
+from mathics.core.systemsymbols import SymbolAssociation, SymbolMakeBoxes, SymbolMissing
 
 
 class Association(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Association.html</url>
+
     <dl>
       <dt>'Association[$key1$ -> $val1$, $key2$ -> $val2$, ...]'
       <dt>'<|$key1$ -> $val1$, $key2$ -> $val2$, ...|>'
@@ -86,7 +84,7 @@ class Association(Builtin):
 
     summary_text = "an association between keys and values"
 
-    def apply_makeboxes(self, rules, f, evaluation):
+    def eval_makeboxes(self, rules, f, evaluation: Evaluation):
         """MakeBoxes[<|rules___|>,
         f:StandardForm|TraditionalForm|OutputForm|InputForm]"""
 
@@ -115,7 +113,7 @@ class Association(Builtin):
             self.error_idx -= 1
         return expr
 
-    def apply(self, rules, evaluation):
+    def eval(self, rules, evaluation: Evaluation):
         "Association[rules__]"
 
         def make_flatten(exprs, rules_dictionary: dict = {}):
@@ -136,7 +134,7 @@ class Association(Builtin):
         except TypeError:
             return None
 
-    def apply_key(self, rules, key, evaluation):
+    def eval_key(self, rules, key, evaluation: Evaluation):
         "Association[rules__][key_]"
 
         def find_key(exprs, rules_dictionary: dict = {}):
@@ -163,6 +161,8 @@ class Association(Builtin):
 
 class AssociationQ(Test):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/AssociationQ.html</url>
+
     <dl>
       <dt>'AssociationQ[$expr$]'
       <dd>return True if $expr$ is a valid Association object, and False otherwise.
@@ -192,8 +192,28 @@ class AssociationQ(Test):
         return expr.get_head_name() == "System`Association" and validate(expr.elements)
 
 
+class Key(Builtin):
+    """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Key.html</url>
+
+    <dl>
+      <dt>Key[$key$]
+      <dd> represents a key used to access a value in an association.
+      <dt>Key[$key$][$assoc$]
+      <dd>
+    </dl>
+    """
+
+    rules = {
+        "Key[key_][assoc_Association]": "assoc[key]",
+    }
+    summary_text = "indicate a key within a part specification"
+
+
 class Keys(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Keys.html</url>
+
     <dl>
       <dt>'Keys[<|$key1$ -> $val1$, $key2$ -> $val2$, ...|>]'
       <dd>return a list of the keys $keyi$ in an association.
@@ -261,7 +281,7 @@ class Keys(Builtin):
 
     summary_text = "list association keys"
 
-    def apply(self, rules, evaluation):
+    def eval(self, rules, evaluation: Evaluation):
         "Keys[rules___]"
 
         def get_keys(expr):
@@ -288,6 +308,8 @@ class Keys(Builtin):
 
 class Lookup(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Lookup.html</url>
+
     <dl>
       <dt>Lookup[$assoc$, $key$]
       <dd> looks up the value associated with $key$ in the association $assoc$, or Missing[$KeyAbsent$].
@@ -305,6 +327,8 @@ class Lookup(Builtin):
 
 class Missing(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Missing.html</url>
+
     <dl>
       <dd>'Missing[]'
       <dt> represents a data that is misssing.
@@ -318,6 +342,8 @@ class Missing(Builtin):
 
 class Values(Builtin):
     """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/Values.html</url>
+
     <dl>
       <dt>'Values[<|$key1$ -> $val1$, $key2$ -> $val2$, ...|>]'
       <dd>return a list of the values $vali$ in an association.
@@ -385,7 +411,7 @@ class Values(Builtin):
 
     summary_text = "list association values"
 
-    def apply(self, rules, evaluation):
+    def eval(self, rules, evaluation: Evaluation):
         "Values[rules___]"
 
         def get_values(expr):

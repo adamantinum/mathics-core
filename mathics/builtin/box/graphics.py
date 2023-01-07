@@ -6,39 +6,31 @@ Boxing Routines for 2D Graphics
 
 from math import atan2, ceil, cos, degrees, floor, log10, pi, sin
 
-
-from mathics.builtin.base import BoxExpression
+from mathics.builtin.box.expression import BoxExpression
 from mathics.builtin.colors.color_directives import (
-    _ColorObject,
     ColorError,
     Opacity,
     RGBColor,
+    _ColorObject,
 )
-from mathics.builtin.drawing.graphics_internals import _GraphicsElementBox, GLOBALS
+from mathics.builtin.drawing.graphics_internals import GLOBALS, _GraphicsElementBox
 from mathics.builtin.graphics import (
+    DEFAULT_POINT_FACTOR,
     Arrowheads,
     Coords,
-    DEFAULT_POINT_FACTOR,
     Graphics,
     GraphicsElements,
     PointSize,
     _BezierCurve,
-    _Line,
-    _Polyline,
     _data_and_options,
     _extract_graphics,
+    _Line,
     _norm,
+    _Polyline,
     _to_float,
     coords,
 )
-
-
-from mathics.core.atoms import (
-    Integer,
-    Real,
-    String,
-)
-
+from mathics.core.atoms import Integer, Real, String
 from mathics.core.attributes import A_HOLD_ALL, A_PROTECTED, A_READ_PROTECTED
 from mathics.core.exceptions import BoxExpressionError
 from mathics.core.expression import Expression
@@ -46,7 +38,6 @@ from mathics.core.formatter import lookup_method
 from mathics.core.list import ListExpression
 from mathics.core.symbols import Symbol, SymbolTrue
 from mathics.core.systemsymbols import SymbolAutomatic, SymbolTraditionalForm
-
 from mathics.eval.makeboxes import format_element
 
 SymbolRegularPolygonBox = Symbol("RegularPolygonBox")
@@ -701,25 +692,40 @@ class GraphicsBox(BoxExpression):
         svg_body = format_fn(self, elements, data=data, **options)
         return svg_body
 
-    def create_axes(self, elements, graphics_options, xmin, xmax, ymin, ymax):
-        axes = graphics_options.get("System`Axes")
-        if axes is SymbolTrue:
+    def create_axes(self, elements, graphics_options, xmin, xmax, ymin, ymax) -> tuple:
+
+        # Note that Asymptote has special commands for drawing axes, like "xaxis"
+        # "yaxis", "xtick" "labelx", "labely". Entend our language
+        # here and use those in render-like routines.
+
+        use_log_for_y_axis = graphics_options.get("System`LogPlot", False)
+        axes_option = graphics_options.get("System`Axes")
+
+        if axes_option is SymbolTrue:
             axes = (True, True)
-        elif axes.has_form("List", 2):
-            axes = (axes.elements[0] is SymbolTrue, axes.elements[1] is SymbolTrue)
+        elif axes_option.has_form("List", 2):
+            axes = (
+                axes_option.elements[0] is SymbolTrue,
+                axes_option.elements[1] is SymbolTrue,
+            )
         else:
             axes = (False, False)
-        ticks_style = graphics_options.get("System`TicksStyle")
-        axes_style = graphics_options.get("System`AxesStyle")
+
+        # The Style option pushes its setting down into graphics components
+        # like ticks, axes, and labels.
+        ticks_style_option = graphics_options.get("System`TicksStyle")
+        axes_style_option = graphics_options.get("System`AxesStyle")
         label_style = graphics_options.get("System`LabelStyle")
-        if ticks_style.has_form("List", 2):
-            ticks_style = ticks_style.elements
+
+        if ticks_style_option.has_form("List", 2):
+            ticks_style = ticks_style_option.elements
         else:
-            ticks_style = [ticks_style] * 2
-        if axes_style.has_form("List", 2):
-            axes_style = axes_style.elements
+            ticks_style = [ticks_style_option] * 2
+
+        if axes_style_option.has_form("List", 2):
+            axes_style = axes_style_option.elements
         else:
-            axes_style = [axes_style] * 2
+            axes_style = [axes_style_option] * 2
 
         ticks_style = [elements.create_style(s) for s in ticks_style]
         axes_style = [elements.create_style(s) for s in axes_style]
@@ -731,12 +737,16 @@ class GraphicsBox(BoxExpression):
             element.is_completely_visible = True
             elements.elements.append(element)
 
+        # Units seem to be in point size units
+
         ticks_x, ticks_x_small, origin_x = self.axis_ticks(xmin, xmax)
         ticks_y, ticks_y_small, origin_y = self.axis_ticks(ymin, ymax)
 
         axes_extra = 6
+
         tick_small_size = 3
         tick_large_size = 5
+
         tick_label_d = 2
 
         ticks_x_int = all(floor(x) == x for x in ticks_x)
@@ -744,7 +754,17 @@ class GraphicsBox(BoxExpression):
 
         for (
             index,
-            (min, max, p_self0, p_other0, p_origin, ticks, ticks_small, ticks_int),
+            (
+                min,
+                max,
+                p_self0,
+                p_other0,
+                p_origin,
+                ticks,
+                ticks_small,
+                ticks_int,
+                is_logscale,
+            ),
         ) in enumerate(
             [
                 (
@@ -756,6 +776,7 @@ class GraphicsBox(BoxExpression):
                     ticks_x,
                     ticks_x_small,
                     ticks_x_int,
+                    False,
                 ),
                 (
                     ymin,
@@ -766,6 +787,7 @@ class GraphicsBox(BoxExpression):
                     ticks_y,
                     ticks_y_small,
                     ticks_y_int,
+                    use_log_for_y_axis,
                 ),
             ]
         ):
@@ -787,8 +809,10 @@ class GraphicsBox(BoxExpression):
                     )
                 )
                 ticks_lines = []
+
                 tick_label_style = ticks_style[index].clone()
                 tick_label_style.extend(label_style)
+
                 for x in ticks:
                     ticks_lines.append(
                         [
@@ -798,12 +822,21 @@ class GraphicsBox(BoxExpression):
                             ),
                         ]
                     )
+
+                    # FIXME: for log plots we labels should appear
+                    # as 10^x rather than say 1000000.
+                    tick_value = 10**x if is_logscale else x
                     if ticks_int:
-                        content = String(str(int(x)))
-                    elif x == floor(x):
-                        content = String("%.1f" % x)  # e.g. 1.0 (instead of 1.)
+                        content = String(str(int(tick_value)))
+                    elif tick_value == floor(x):
+                        content = String(
+                            "%.1f" % tick_value
+                        )  # e.g. 1.0 (instead of 1.)
                     else:
-                        content = String("%g" % x)  # fix e.g. 0.6000000000000001
+                        content = String(
+                            "%g" % tick_value
+                        )  # fix e.g. 0.6000000000000001
+
                     add_element(
                         InsetBox(
                             elements,
@@ -827,31 +860,32 @@ class GraphicsBox(BoxExpression):
                 add_element(LineBox(elements, axes_style[0], lines=ticks_lines))
         return axes
 
-        """if axes[1]:
-            add_element(LineBox(elements, axes_style[1], lines=[[Coords(elements, pos=(origin_x,ymin), d=(0,-axes_extra)),
-                Coords(elements, pos=(origin_x,ymax), d=(0,axes_extra))]]))
-            ticks = []
-            tick_label_style = ticks_style[1].clone()
-            tick_label_style.extend(label_style)
-            for k in range(start_k_y, start_k_y+steps_y+1):
-                if k != origin_k_y:
-                    y = k * step_y
-                    if y > ymax:
-                        break
-                    pos = (origin_x,y)
-                    ticks.append([Coords(elements, pos=pos),
-                        Coords(elements, pos=pos, d=(tick_large_size,0))])
-                    add_element(InsetBox(elements, tick_label_style, content=Real(y), pos=Coords(elements, pos=pos,
-                        d=(-tick_label_d,0)), opos=(1,0)))
-            for k in range(start_k_y_small, start_k_y_small+steps_y_small+1):
-                if k % sub_y != 0:
-                    y = k * step_y_small
-                    if y > ymax:
-                        break
-                    pos = (origin_x,y)
-                    ticks.append([Coords(elements, pos=pos),
-                        Coords(elements, pos=pos, d=(tick_small_size,0))])
-            add_element(LineBox(elements, axes_style[1], lines=ticks))"""
+        # Old code?
+        # if axes[1]:
+        #     add_element(LineBox(elements, axes_style[1], lines=[[Coords(elements, pos=(origin_x,ymin), d=(0,-axes_extra)),
+        #         Coords(elements, pos=(origin_x,ymax), d=(0,axes_extra))]]))
+        #     ticks = []
+        #     tick_label_style = ticks_style[1].clone()
+        #     tick_label_style.extend(label_style)
+        #     for k in range(start_k_y, start_k_y+steps_y+1):
+        #         if k != origin_k_y:
+        #             y = k * step_y
+        #             if y > ymax:
+        #                 break
+        #             pos = (origin_x,y)
+        #             ticks.append([Coords(elements, pos=pos),
+        #                 Coords(elements, pos=pos, d=(tick_large_size,0))])
+        #             add_element(InsetBox(elements, tick_label_style, content=Real(y), pos=Coords(elements, pos=pos,
+        #                 d=(-tick_label_d,0)), opos=(1,0)))
+        #     for k in range(start_k_y_small, start_k_y_small+steps_y_small+1):
+        #         if k % sub_y != 0:
+        #             y = k * step_y_small
+        #             if y > ymax:
+        #                 break
+        #             pos = (origin_x,y)
+        #             ticks.append([Coords(elements, pos=pos),
+        #                 Coords(elements, pos=pos, d=(tick_small_size,0))])
+        #     add_element(LineBox(elements, axes_style[1], lines=ticks))
 
 
 class FilledCurveBox(_GraphicsElementBox):
@@ -981,10 +1015,10 @@ class InsetBox(_GraphicsElementBox):
             self.pos = pos
             self.opos = opos
 
-        if isinstance(self.content, String):
-            self.content = self.content.atom_to_boxes(
-                SymbolStandardForm, evaluation=self.graphics.evaluation
-            )
+        # if isinstance(self.content, String):
+        #    self.content = self.content.atom_to_boxes(
+        #        SymbolStandardForm, evaluation=self.graphics.evaluation
+        #    )
         self.content_text = self.content.boxes_to_text(
             evaluation=self.graphics.evaluation
         )
@@ -1000,7 +1034,9 @@ class InsetBox(_GraphicsElementBox):
 
 
 class LineBox(_Polyline):
-    # Boxing methods for a list of Line.
+    """
+    Boxing methods for a list of Lines.
+    """
 
     def init(self, graphics, style, item=None, lines=None):
         super(LineBox, self).init(graphics, item, style)
