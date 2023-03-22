@@ -3,7 +3,6 @@
 General Structural Expression Functions
 """
 
-from mathics.algorithm.parts import python_levelspec, walk_levels
 from mathics.builtin.base import BinaryOperator, Builtin, Predefined
 from mathics.core.atoms import Integer, Integer0, Integer1, Rational
 from mathics.core.exceptions import InvalidLevelspecError
@@ -11,7 +10,8 @@ from mathics.core.expression import Evaluation, Expression
 from mathics.core.list import ListExpression
 from mathics.core.rules import Pattern
 from mathics.core.symbols import Atom, Symbol, SymbolFalse, SymbolTrue
-from mathics.core.systemsymbols import SymbolDirectedInfinity, SymbolMap
+from mathics.core.systemsymbols import SymbolMap
+from mathics.eval.parts import python_levelspec, walk_levels
 
 SymbolOperate = Symbol("Operate")
 SymbolSortBy = Symbol("SortBy")
@@ -48,32 +48,49 @@ class ApplyLevel(BinaryOperator):
 class BinarySearch(Builtin):
     """
     <url>
-    :WMA link:
-    https://reference.wolfram.com/language/ref/BinarySearch.html</url>
+    :Binary search algorithm:
+    https://en.wikipedia.org/wiki/Binary_search_algorithm</url> (<url>
+    :WMA:
+    https://reference.wolfram.com/language/ref/BinarySearch.html</url>)
 
     <dl>
       <dt>'CombinatoricaOld`BinarySearch[$l$, $k$]'
-      <dd>searches the list $l$, which has to be sorted, for key $k$ and returns its index in $l$. If $k$ does not
-        exist in $l$, 'BinarySearch' returns (a + b) / 2, where a and b are the indices between which $k$ would have
-        to be inserted in order to maintain the sorting order in $l$. Please note that $k$ and the elements in $l$
-        need to be comparable under a strict total order (see https://en.wikipedia.org/wiki/Total_order).
+      <dd>searches the list $l$, which has to be sorted, for key $k$ and \
+          returns its index in $l$.
+
+          If $k$ does not exist in $l$, 'BinarySearch' returns ($a$ + $b$) / 2, \
+          where $a$ and $b$ are the indices between which $k$ would have  \
+          to be inserted in order to maintain the sorting order in $l$.
+
+          Please note that $k$ and the elements in $l$ need to be comparable \
+          under a <url>
+          :strict total order:
+          https://en.wikipedia.org/wiki/Total_order</url>.
 
       <dt>'CombinatoricaOld`BinarySearch[$l$, $k$, $f$]'
-      <dd>the index of $k in the elements of $l$ if $f$ is applied to the latter prior to comparison. Note that $f$
-        needs to yield a sorted sequence if applied to the elements of $l.
+      <dd>gives the index of $k$ in the elements of $l$ if $f$ is applied to the \
+          latter prior to comparison. Note that $f$ \
+          needs to yield a sorted sequence if applied to the elements of $l$.
     </dl>
+
+    Number 100 is found at exactly in the fourth place of the given list:
 
     >> CombinatoricaOld`BinarySearch[{3, 4, 10, 100, 123}, 100]
      = 4
 
+     Number 7 is found in between the second and third place (3, and 9)\
+     of the given list. The numerical difference between 3 and 9 does \
+     not figure into the .5 part of 2.5:
+
     >> CombinatoricaOld`BinarySearch[{2, 3, 9}, 7] // N
      = 2.5
 
-    >> CombinatoricaOld`BinarySearch[{2, 7, 9, 10}, 3] // N
-     = 1.5
+    0.5 is what you get when the item comes before the given list:
 
     >> CombinatoricaOld`BinarySearch[{-10, 5, 8, 10}, -100] // N
      = 0.5
+
+    And here is what you see when the item comes at the end of the list:
 
     >> CombinatoricaOld`BinarySearch[{-10, 5, 8, 10}, 20] // N
      = 4.5
@@ -85,22 +102,22 @@ class BinarySearch(Builtin):
     context = "CombinatoricaOld`"
 
     rules = {
-        "CombinatoricaOld`BinarySearch[l_List, k_] /; Length[l] > 0": "CombinatoricaOld`BinarySearch[l, k, Identity]"
+        "CombinatoricaOld`BinarySearch[li_List, k_] /; Length[li] > 0": "CombinatoricaOld`BinarySearch[li, k, Identity]"
     }
 
     summary_text = "search a sorted list for a key"
 
-    def eval(self, l, k, f, evaluation: Evaluation):
-        "CombinatoricaOld`BinarySearch[l_List, k_, f_] /; Length[l] > 0"
+    def eval(self, li, k, f, evaluation: Evaluation):
+        "CombinatoricaOld`BinarySearch[li_List, k_, f_] /; Length[li] > 0"
 
-        elements = l.elements
+        elements = li.elements
 
         lower_index = 1
         upper_index = len(elements)
 
         if (
             lower_index > upper_index
-        ):  # empty list l? Length[l] > 0 condition should guard us, but check anyway
+        ):  # empty list li? Length[l] > 0 condition should guard us, but check anyway
             return Symbol("$Aborted")
 
         # "transform" is a handy wrapper for applying "f" or nothing
@@ -363,9 +380,10 @@ class Operate(Builtin):
 
         head_depth = n.get_int_value()
         if head_depth is None or head_depth < 0:
-            return evaluation.message(
+            evaluation.message(
                 "Operate", "intnn", Expression(SymbolOperate, p, expr, n), 3
             )
+            return
 
         if head_depth == 0:
             # Act like Apply
@@ -530,10 +548,12 @@ class SortBy(Builtin):
         "SortBy[li_, f_]"
 
         if isinstance(li, Atom):
-            return evaluation.message("Sort", "normal")
+            evaluation.message("Sort", "normal")
+            return
         elif li.get_head_name() != "System`List":
             expr = Expression(SymbolSortBy, li, f)
-            return evaluation.message(self.get_name(), "list", expr, 1)
+            evaluation.message(self.get_name(), "list", expr, 1)
+            return
         else:
             keys_expr = Expression(SymbolMap, f, li).evaluate(evaluation)  # precompute:
             # even though our sort function has only (n log n) comparisons, we should
@@ -545,7 +565,8 @@ class SortBy(Builtin):
                 or len(keys_expr.elements) != len(li.elements)
             ):
                 expr = Expression(SymbolSortBy, li, f)
-                return evaluation.message("SortBy", "func", expr, 2)
+                evaluation.message("SortBy", "func", expr, 2)
+                return
 
             keys = keys_expr.elements
             raw_keys = li.elements

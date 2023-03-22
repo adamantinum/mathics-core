@@ -17,9 +17,9 @@ from mathics.core.attributes import (
 from mathics.core.convert.mpmath import from_mpmath
 from mathics.core.evaluation import Evaluation
 from mathics.core.number import (
+    FP_MANTISA_BINARY_DIGITS,
     PrecisionValueError,
     get_precision,
-    machine_precision,
     prec as _prec,
 )
 
@@ -149,7 +149,7 @@ class AiryAiZero(Builtin):
             return
 
         if d is None:
-            p = machine_precision
+            p = FP_MANTISA_BINARY_DIGITS
         else:
             p = _prec(d)
 
@@ -157,7 +157,7 @@ class AiryAiZero(Builtin):
 
         with mpmath.workprec(p):
             result = mpmath.airyaizero(k_int)
-            return from_mpmath(result, d)
+            return from_mpmath(result, precision=p)
 
 
 class AiryBi(_MPMathFunction):
@@ -275,7 +275,7 @@ class AiryBiZero(Builtin):
             return
 
         if d is None:
-            p = machine_precision
+            p = FP_MANTISA_BINARY_DIGITS
         else:
             p = _prec(d)
 
@@ -283,7 +283,7 @@ class AiryBiZero(Builtin):
 
         with mpmath.workprec(p):
             result = mpmath.airybizero(k_int)
-            return from_mpmath(result, d)
+            return from_mpmath(result, precision=p)
 
 
 class AngerJ(_Bessel):
@@ -321,34 +321,43 @@ class BesselI(_Bessel):
     """
 
 
-    <url>
-    :Modified Bessel function of the first kind:
-    https://en.wikipedia.org/wiki/Bessel_function#Bessel_functions_of_the_first_kind:_J%CE%B1</url> (<url>
-    :Sympy:
-    https://docs.sympy.org/latest/modules/functions/special.html#sympy.functions.special.bessel.besseli</url>, <url>
-    :WMA:
-    https://reference.wolfram.com/language/ref/BesselI.html</url>)
+        <url>
+        :Modified Bessel function of the first kind:
+        https://en.wikipedia.org/
+    wiki/Bessel_function#Bessel_functions_of_the_first_kind:_J%CE%B1</url> (<url>
+        :Sympy:
+        https://docs.sympy.org/latest/modules/functions/
+    special.html#sympy.functions.special.bessel.besseli</url>, <url>
+        :WMA:
+        https://reference.wolfram.com/language/ref/BesselI.html</url>)
 
-    <dl>
-    <dt>'BesselI[$n$, $z$]'
-      <dd>returns the modified Bessel function of the first kind I_$n$($z$).
-    </dl>
+        <dl>
+        <dt>'BesselI[$n$, $z$]'
+          <dd>returns the modified Bessel function of the first kind I_$n$($z$).
+        </dl>
 
-    >> BesselI[1.5, 4]
-     = 8.17263
+        >> BesselI[0, 0]
+         = 1
 
-    >> Plot[BesselI[0, x], {x, 0, 5}]
-     = -Graphics-
+        >> BesselI[1.5, 4]
+         = 8.17263
+
+        >> Plot[BesselI[0, x], {x, 0, 5}]
+         = -Graphics-
+
+        The special case of half-integer index is expanded using Rayleigh's formulas:
+        >> BesselI[3/2, x]
+         = Sqrt[2] Sqrt[x] (-Sinh[x] / x ^ 2 + Cosh[x] / x) / Sqrt[Pi]
     """
-
-    rules = {
-        "Derivative[0, 1][BesselI]": "((BesselI[-1 + #1, #2] + BesselI[1 + #1, #2])/2)&",
-    }
 
     mpmath_name = "besseli"
     rules = {
         "BesselI[Undefined, x_]": "Undefined",
         "BesselI[y_, Undefined]": "Undefined",
+        # FIXME: these are not respected. Why?
+        "BesselI[x_, -I Infinity]": "0",
+        "BesselI[x_, Infinity]": "0",
+        "Derivative[0, 1][BesselI]": "((BesselI[-1 + #1, #2] + BesselI[1 + #1, #2])/2)&",
     }
     sympy_name = "besseli"
     summary_text = "Bessel's function of the second kind"
@@ -378,17 +387,19 @@ class BesselJ(_Bessel):
     >> D[BesselJ[n, z], z]
      = -BesselJ[1 + n, z] / 2 + BesselJ[-1 + n, z] / 2
 
-    #> BesselJ[0., 0.]
+    >> BesselJ[0., 0.]
      = 1.
 
     >> Plot[BesselJ[0, x], {x, 0, 10}]
      = -Graphics-
-    """
 
-    # TODO: Sympy Backend is not as powerful as Mathematica
-    """
+    The special case of half-integer index is expanded using Rayleigh's formulas:
     >> BesselJ[1/2, x]
-     = Sqrt[2 / Pi] Sin[x] / Sqrt[x]
+     = Sqrt[2] Sin[x] / (Sqrt[x] Sqrt[Pi])
+
+    Some integrals can be expressed in terms of Bessel functions:
+    >> Integrate[Cos[3 Sin[w]], {w, 0, Pi}]
+     = Pi BesselJ[0, 3]
     """
 
     mpmath_name = "besselj"
@@ -423,6 +434,11 @@ class BesselK(_Bessel):
 
     >> Plot[BesselK[0, x], {x, 0, 5}]
      = -Graphics-
+
+    The special case of half-integer index is expanded using Rayleigh's formulas:
+    >> BesselK[-3/2, x]
+     = Sqrt[2] Sqrt[x] Sqrt[Pi] (E ^ (-x) / x ^ 2 + E ^ (-x) / x) / 2
+
     """
 
     mpmath_name = "besselk"
@@ -455,19 +471,20 @@ class BesselY(_Bessel):
     >> BesselY[1.5, 4]
      = 0.367112
 
-    ## Returns ComplexInfinity instead
-    ## #> BesselY[0., 0.]
-    ##  = -Infinity
+    >> BesselY[0., 0.]
+      = -Infinity
 
     >> Plot[BesselY[0, x], {x, 0, 10}]
      = -Graphics-
-    """
 
-    # TODO: Special Values
-    """
+    The special case of half-integer index is expanded using Rayleigh's formulas:
+    >> BesselY[-3/2, x]
+     =  Sqrt[2] Sqrt[x] (-Sin[x] / x ^ 2 + Cos[x] / x) / Sqrt[Pi]
+
     >> BesselY[0, 0]
      = -Infinity
     """
+
     rules = {
         "Derivative[0,1][BesselY]": "(BesselY[-1 + #1, #2] / 2 - BesselY[1 + #1, #2] / 2)&",
     }

@@ -10,22 +10,24 @@ Dependency and Dispursion Statistics
 sort_order = "mathics.builtin.special-moments"
 
 from mathics.builtin.base import Builtin
-from mathics.builtin.lists import _NotRectangularException, _Rectangular
+from mathics.builtin.statistics.base import NotRectangularException, Rectangular
 from mathics.core.atoms import Integer
 from mathics.core.evaluation import Evaluation
 from mathics.core.expression import Expression
 from mathics.core.symbols import Symbol, SymbolDivide
-from mathics.core.systemsymbols import SymbolDot, SymbolMean, SymbolSubtract
-
-SymbolConjugate = Symbol("Conjugate")
-SymbolCovariance = Symbol("Covariance")
+from mathics.core.systemsymbols import (
+    SymbolConjugate,
+    SymbolCovariance,
+    SymbolDot,
+    SymbolMean,
+    SymbolStandardDeviation,
+    SymbolSubtract,
+    SymbolVariance,
+)
 
 # Something is weird here. No System`. And we can't use what is in
 # SymbolSqrt from systemsymbols?
 SymbolSqrt = Symbol("Sqrt")
-
-SymbolStandardDeviation = Symbol("StandardDeviation")
-SymbolVariance = Symbol("Variance")
 
 
 class Correlation(Builtin):
@@ -109,7 +111,7 @@ class Covariance(Builtin):
             )
 
 
-class StandardDeviation(_Rectangular):
+class StandardDeviation(Rectangular):
     """
     <url>
     :Standard deviation:
@@ -144,22 +146,24 @@ class StandardDeviation(_Rectangular):
     }
     summary_text = "standard deviation of a dataset"
 
-    def eval(self, l, evaluation: Evaluation):
-        "StandardDeviation[l_List]"
-        if len(l.elements) <= 1:
-            evaluation.message("StandardDeviation", "shlen", l)
-        elif all(element.get_head_name() == "System`List" for element in l.elements):
+    def eval(self, li, evaluation: Evaluation):
+        "StandardDeviation[li_List]"
+        if len(li.elements) <= 1:
+            evaluation.message("StandardDeviation", "shlen", li)
+        elif all(element.get_head_name() == "System`List" for element in li.elements):
             try:
-                return self.rect(l)
-            except _NotRectangularException:
+                return self.rect(li)
+            except NotRectangularException:
                 evaluation.message(
-                    "StandardDeviation", "rectt", Expression(SymbolStandardDeviation, l)
+                    "StandardDeviation",
+                    "rectt",
+                    Expression(SymbolStandardDeviation, li),
                 )
         else:
-            return Expression(SymbolSqrt, Expression(SymbolVariance, l))
+            return Expression(SymbolSqrt, Expression(SymbolVariance, li))
 
 
-class Variance(_Rectangular):
+class Variance(Rectangular):
     """
     <url>
     :Variance:
@@ -198,21 +202,21 @@ class Variance(_Rectangular):
     # for the general formulation of real and complex variance below, see for example
     # https://en.wikipedia.org/wiki/Variance#Generalizations
 
-    def eval(self, l, evaluation: Evaluation):
-        "Variance[l_List]"
-        if len(l.elements) <= 1:
-            evaluation.message("Variance", "shlen", l)
-        elif all(element.get_head_name() == "System`List" for element in l.elements):
+    def eval(self, li, evaluation: Evaluation):
+        "Variance[li_List]"
+        if len(li.elements) <= 1:
+            evaluation.message("Variance", "shlen", li)
+        elif all(element.get_head_name() == "System`List" for element in li.elements):
             try:
-                return self.rect(l)
-            except _NotRectangularException:
-                evaluation.message("Variance", "rectt", Expression(SymbolVariance, l))
+                return self.rect(li)
+            except NotRectangularException:
+                evaluation.message("Variance", "rectt", Expression(SymbolVariance, li))
         else:
-            d = Expression(SymbolSubtract, l, Expression(SymbolMean, l))
+            d = Expression(SymbolSubtract, li, Expression(SymbolMean, li))
             return Expression(
                 SymbolDivide,
                 Expression(SymbolDot, d, Expression(SymbolConjugate, d)),
-                Integer(len(l.elements) - 1),
+                Integer(len(li.elements) - 1),
             )
 
 

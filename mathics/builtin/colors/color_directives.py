@@ -16,9 +16,9 @@ from mathics.core.convert.expression import to_expression, to_mathics_list
 from mathics.core.convert.python import from_python
 from mathics.core.element import ImmutableValueMixin
 from mathics.core.exceptions import BoxExpressionError
-from mathics.core.expression import Expression
+from mathics.core.expression import Evaluation, Expression
 from mathics.core.list import ListExpression
-from mathics.core.number import machine_epsilon
+from mathics.core.number import MACHINE_EPSILON
 from mathics.core.symbols import Symbol
 from mathics.core.systemsymbols import SymbolApply
 
@@ -27,7 +27,7 @@ SymbolOpacity = Symbol("Opacity")
 
 def _cie2000_distance(lab1, lab2):
     # reference: https://en.wikipedia.org/wiki/Color_difference#CIEDE2000
-    e = machine_epsilon
+    e = MACHINE_EPSILON
     kL = kC = kH = 1  # common values
 
     L1, L2 = lab1[0], lab2[0]
@@ -85,14 +85,14 @@ def _cie2000_distance(lab1, lab2):
     )
 
 
-def _CMC_distance(lab1, lab2, l, c):
+def _CMC_distance(lab1, lab2, ll, c):
     # reference https://en.wikipedia.org/wiki/Color_difference#CMC_l:c_.281984.29
     L1, L2 = lab1[0], lab2[0]
     a1, a2 = lab1[1], lab2[1]
     b1, b2 = lab1[2], lab2[2]
 
     dL, da, db = L2 - L1, a2 - a1, b2 - b1
-    e = machine_epsilon
+    e = MACHINE_EPSILON
 
     C1 = sqrt(a1**2 + b1**2)
     C2 = sqrt(a2**2 + b2**2)
@@ -110,7 +110,7 @@ def _CMC_distance(lab1, lab2, l, c):
     SL = 0.511 if L1 < 16 else (0.040975 * L1) / (1 + 0.01765 * L1)
     SC = (0.0638 * C1) / (1 + 0.0131 * C1) + 0.638
     SH = SC * (F * T + 1 - F)
-    return sqrt((dL / (l * SL)) ** 2 + (dC / (c * SC)) ** 2 + dH2 / SH**2)
+    return sqrt((dL / (ll * SL)) ** 2 + (dC / (c * SC)) ** 2 + dH2 / SH**2)
 
 
 def _component_distance(a, b, i):
@@ -223,7 +223,9 @@ class _ColorObject(_GraphicsDirective, ImmutableValueMixin):
 
 class CMYKColor(_ColorObject):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/CMYKColor.html</url>
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/CMYKColor.html</url>
 
     <dl>
       <dt>'CMYKColor[$c$, $m$, $y$, $k$]'
@@ -238,6 +240,7 @@ class CMYKColor(_ColorObject):
     color_space = "CMYK"
     components_sizes = [3, 4, 5]
     default_components = [0, 0, 0, 0, 1]
+    summary_text = "specify a CMYK color"
 
 
 class ColorDistance(Builtin):
@@ -278,7 +281,6 @@ class ColorDistance(Builtin):
 
     """
 
-    summary_text = "distance between two colors"
     options = {"DistanceFunction": "Automatic"}
 
     requires = ("numpy",)
@@ -288,6 +290,8 @@ class ColorDistance(Builtin):
         "invarg": "`1` and `2` should be two colors or a color and a lists of colors or "
         + "two lists of colors of the same length.",
     }
+
+    summary_text = "get distance between two colors"
 
     # If numpy is not installed, 100 * c1.to_color_space returns
     # a list of 100 x 3 elements, instead of doing elementwise multiplication
@@ -326,7 +330,7 @@ class ColorDistance(Builtin):
         / 100,
     }
 
-    def eval(self, c1, c2, evaluation, options):
+    def eval(self, c1, c2, evaluation: Evaluation, options: dict):
         "ColorDistance[c1_, c2_, OptionsPattern[ColorDistance]]"
 
         distance_function = options.get("System`DistanceFunction")
@@ -468,6 +472,8 @@ class GrayLevel(_ColorObject):
     components_sizes = [1, 2]
     default_components = [0, 1]
 
+    summary_text = "specify a Grayscale color"
+
 
 class Hue(_ColorObject):
     """
@@ -500,13 +506,15 @@ class Hue(_ColorObject):
     components_sizes = [1, 2, 3, 4]
     default_components = [0, 1, 1, 1]
 
+    summary_text = "specify a color with hue, saturation lightness, and opacity"
+
     def hsl_to_rgba(self) -> tuple:
-        h, s, l = self.components[:3]
-        if l < 0.5:
-            q = l * (1 + s)
+        h, s, li = self.components[:3]
+        if li < 0.5:
+            q = li * (1 + s)
         else:
-            q = l + s - l * s
-        p = 2 * l - q
+            q = li + s - li * s
+        p = 2 * li - q
 
         rgb = (h + 1 / 3, h, h - 1 / 3)
 
@@ -548,6 +556,8 @@ class LABColor(_ColorObject):
     components_sizes = [3, 4]
     default_components = [0, 0, 0, 1]
 
+    summary_text = "specify a LAB color"
+
 
 class LCHColor(_ColorObject):
     """
@@ -566,6 +576,8 @@ class LCHColor(_ColorObject):
     components_sizes = [3, 4]
     default_components = [0, 0, 0, 1]
 
+    summary_text = "specify a LHC color"
+
 
 class LUVColor(_ColorObject):
     """
@@ -580,6 +592,8 @@ class LUVColor(_ColorObject):
     color_space = "LUV"
     components_sizes = [3, 4]
     default_components = [0, 0, 0, 1]
+
+    summary_text = "specify a LUV color"
 
 
 class Opacity(_GraphicsDirective):
@@ -611,13 +625,15 @@ class Opacity(_GraphicsDirective):
         try:
             if 0.0 <= self.opacity <= 1.0:
                 return self.opacity
-        except:
+        except Exception:
             pass
         return None
 
     @staticmethod
     def create_as_style(klass, graphics, item):
         return klass(item)
+
+    summary_text = "specify a Opacity level"
 
 
 class RGBColor(_ColorObject):
@@ -649,6 +665,8 @@ class RGBColor(_ColorObject):
     def to_rgba(self):
         return self.components
 
+    summary_text = "specify an RGB color"
+
 
 class XYZColor(_ColorObject):
     """
@@ -665,3 +683,5 @@ class XYZColor(_ColorObject):
     color_space = "XYZ"
     components_sizes = [3, 4]
     default_components = [0, 0, 0, 1]
+
+    summary_text = "specify an XYZ color"

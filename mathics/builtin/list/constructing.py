@@ -11,22 +11,25 @@ See also Constructing Vectors.
 from itertools import permutations
 
 from mathics.builtin.base import Builtin, IterationFunction, Pattern
-from mathics.builtin.lists import get_tuples
-from mathics.core.atoms import Integer, Symbol
-from mathics.core.attributes import A_HOLD_FIRST, A_LISTABLE, A_PROTECTED
+from mathics.builtin.box.layout import RowBox
+from mathics.core.atoms import Integer
+from mathics.core.attributes import A_HOLD_FIRST, A_LISTABLE, A_LOCKED, A_PROTECTED
 from mathics.core.convert.expression import to_expression
 from mathics.core.convert.sympy import from_sympy
 from mathics.core.element import ElementsProperties
+from mathics.core.evaluation import Evaluation
 from mathics.core.expression import Expression, structure
 from mathics.core.list import ListExpression
 from mathics.core.symbols import Atom
-
-SymbolNormal = Symbol("Normal")
+from mathics.core.systemsymbols import SymbolNormal
+from mathics.eval.lists import get_tuples, list_boxes
 
 
 class Array(Builtin):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/Array.html</url>
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/Array.html</url>
 
     <dl>
       <dt>'Array[$f$, $n$]'
@@ -36,10 +39,12 @@ class Array(Builtin):
       <dd>returns the $n$-element list '{$f$[$a$], ..., $f$[$a$ + $n$]}'.
 
       <dt>'Array[$f$, {$n$, $m$}, {$a$, $b$}]'
-      <dd>returns an $n$-by-$m$ matrix created by applying $f$ to indices ranging from '($a$, $b$)' to '($a$ + $n$, $b$ + $m$)'.
+      <dd>returns an $n$-by-$m$ matrix created by applying $f$ to indices \
+          ranging from '($a$, $b$)' to '($a$ + $n$, $b$ + $m$)'.
 
       <dt>'Array[$f$, $dims$, $origins$, $h$]'
-      <dd>returns an expression with the specified dimensions and index origins, with head $h$ (instead of 'List').
+      <dd>returns an expression with the specified dimensions and index origins, \
+          with head $h$ (instead of 'List').
     </dl>
 
     >> Array[f, 4]
@@ -70,7 +75,7 @@ class Array(Builtin):
 
     summary_text = "form an array by applying a function to successive indices"
 
-    def apply(self, f, dimsexpr, origins, head, evaluation):
+    def eval(self, f, dimsexpr, origins, head, evaluation: Evaluation):
         "Array[f_, dimsexpr_, origins_:1, head_:List]"
 
         if dimsexpr.has_form("List", None):
@@ -115,7 +120,9 @@ class Array(Builtin):
 
 class ConstantArray(Builtin):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/ConstantArray.html</url>
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/ConstantArray.html</url>
 
     <dl>
       <dt>'ConstantArray[$expr$, $n$]'
@@ -135,9 +142,50 @@ class ConstantArray(Builtin):
     }
 
 
+class List(Builtin):
+    """
+    <url>:WMA link:https://reference.wolfram.com/language/ref/List.html</url>
+
+    <dl>
+      <dt>'List[$e1$, $e2$, ..., $ei$]'
+      <dt>'{$e1$, $e2$, ..., $ei$}'
+      <dd>represents a list containing the elements $e1$...$ei$.
+    </dl>
+
+    'List' is the head of lists:
+    >> Head[{1, 2, 3}]
+     = List
+
+    Lists can be nested:
+    >> {{a, b, {c, d}}}
+     = {{a, b, {c, d}}}
+    """
+
+    attributes = A_LOCKED | A_PROTECTED
+    summary_text = "form a list"
+
+    def eval(self, elements, evaluation):
+        """List[elements___]"""
+        # Pick out the elements part of the parameter elements;
+        # we we will call that `elements_part_of_elements__`.
+        # Note that the parameter elements may be wrapped in a Sequence[]
+        # so remove that if when it is present.
+        elements_part_of_elements__ = elements.get_sequence()
+        return ListExpression(*elements_part_of_elements__)
+
+    def eval_makeboxes(self, items, f, evaluation):
+        """MakeBoxes[{items___},
+        f:StandardForm|TraditionalForm|OutputForm|InputForm|FullForm]"""
+
+        items = items.get_sequence()
+        return RowBox(*list_boxes(items, f, evaluation, "{", "}"))
+
+
 class Normal(Builtin):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/Normal.html</url>
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/Normal.html</url>
 
     <dl>
       <dt>'Normal[expr_]'
@@ -147,7 +195,7 @@ class Normal(Builtin):
 
     summary_text = "convert objects to normal expressions"
 
-    def apply_general(self, expr, evaluation):
+    def eval_general(self, expr, evaluation: Evaluation):
         "Normal[expr_]"
         if isinstance(expr, Atom):
             return
@@ -159,7 +207,9 @@ class Normal(Builtin):
 
 class Range(Builtin):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/Range.html</url>
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/Range.html</url>
 
     <dl>
       <dt>'Range[$n$]'
@@ -186,7 +236,7 @@ class Range(Builtin):
 
     summary_text = "form a list from a range of numbers or other objects"
 
-    def apply(self, imin, imax, di, evaluation):
+    def eval(self, imin, imax, di, evaluation: Evaluation):
         "Range[imin_?RealNumberQ, imax_?RealNumberQ, di_?RealNumberQ]"
 
         if (
@@ -213,7 +263,9 @@ class Range(Builtin):
 
 class Permutations(Builtin):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/Permutations.html</url>
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/Permutations.html</url>
 
     <dl>
       <dt>'Permutations[$list$]'
@@ -248,17 +300,17 @@ class Permutations(Builtin):
 
     summary_text = "form permutations of a list"
 
-    def apply_argt(self, evaluation):
+    def eval_argt(self, evaluation: Evaluation):
         "Permutations[]"
         evaluation.message(self.get_name(), "argt")
 
-    def apply(self, li, evaluation):
+    def eval(self, li, evaluation: Evaluation):
         "Permutations[li_List]"
         return ListExpression(
             *[ListExpression(*p) for p in permutations(li.elements, len(li.elements))],
         )
 
-    def apply_n(self, li, n, evaluation):
+    def eval_n(self, li, n, evaluation: Evaluation):
         "Permutations[li_List, n_]"
 
         rs = None
@@ -291,11 +343,15 @@ class Permutations(Builtin):
 
 class Reap(Builtin):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/Reap.html</url>
+    <url>
+    :WMA link:
+    https://reference.wolfram.com/language/ref/Reap.html</url>
 
     <dl>
       <dt>'Reap[$expr$]'
-      <dd>gives the result of evaluating $expr$, together with all values sown during this evaluation. Values sown with different tags are given in different lists.
+      <dd>gives the result of evaluating $expr$, together with all values \
+          sown during this evaluation. Values sown with different tags \
+          are given in different lists.
 
       <dt>'Reap[$expr$, $pattern$]'
       <dd>only yields values sown with a tag matching $pattern$.
@@ -305,7 +361,8 @@ class Reap(Builtin):
       <dd>uses multiple patterns.
 
       <dt>'Reap[$expr$, $pattern$, $f$]'
-      <dd>applies $f$ on each tag and the corresponding values sown in the form '$f$[tag, {e1, e2, ...}]'.
+      <dd>applies $f$ on each tag and the corresponding values sown \
+          in the form '$f$[tag, {e1, e2, ...}]'.
     </dl>
 
     >> Reap[Sow[3]; Sow[1]]
@@ -339,7 +396,7 @@ class Reap(Builtin):
         "Reap[expr_]": "Reap[expr, _]",
     }
 
-    def apply(self, expr, patterns, f, evaluation):
+    def eval(self, expr, patterns, f, evaluation: Evaluation):
         "Reap[expr_, {patterns___}, f_]"
 
         patterns = patterns.get_sequence()
@@ -396,7 +453,7 @@ class Sow(Builtin):
         "Sow[e_, tag_]": "Sow[e, {tag}]",
     }
 
-    def apply(self, e, tags, evaluation):
+    def eval(self, e, tags, evaluation: Evaluation):
         "Sow[e_, {tags___}]"
 
         tags = tags.get_sequence()
@@ -496,14 +553,14 @@ class Tuples(Builtin):
 
     summary_text = "form n-tuples from a list"
 
-    def apply_n(self, expr, n, evaluation):
+    def eval_n(self, expr, n: Integer, evaluation: Evaluation):
         "Tuples[expr_, n_Integer]"
 
         if isinstance(expr, Atom):
             evaluation.message("Tuples", "normal")
             return
-        n = n.get_int_value()
-        if n is None or n < 0:
+        py_n = n.value
+        if py_n is None or py_n < 0:
             evaluation.message("Tuples", "intnn")
             return
         items = expr.elements
@@ -518,10 +575,10 @@ class Tuples(Builtin):
                         yield [item] + rest
 
         return ListExpression(
-            *(Expression(expr.head, *elements) for elements in iterate(n))
+            *(Expression(expr.head, *elements) for elements in iterate(py_n))
         )
 
-    def apply_lists(self, exprs, evaluation):
+    def eval_lists(self, exprs, evaluation: Evaluation):
         "Tuples[{exprs___}]"
 
         exprs = exprs.get_sequence()

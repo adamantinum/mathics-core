@@ -5,13 +5,13 @@ import hashlib
 import platform
 import zlib
 
-from mathics.algorithm.parts import walk_levels
 from mathics.builtin.base import Builtin
 from mathics.core.atoms import ByteArrayAtom, Integer, String
 from mathics.core.attributes import A_PROTECTED, A_READ_PROTECTED
 from mathics.core.evaluation import Evaluation
 from mathics.core.expression import Expression
 from mathics.core.systemsymbols import SymbolByteArray
+from mathics.eval.parts import walk_levels
 
 if platform.python_implementation() == "PyPy":
     bytecount_support = False
@@ -55,7 +55,7 @@ class ByteCount(Builtin):
     def eval(self, expression, evaluation: Evaluation):
         "ByteCount[expression_]"
         if not bytecount_support:
-            return evaluation.message("ByteCount", "pypy")
+            evaluation.message("ByteCount", "pypy")
         else:
             return Integer(count_bytes(expression))
 
@@ -202,7 +202,8 @@ class LeafCount(Builtin):
 
         expr = expr.get_sequence()
         if len(expr) != 1:
-            return evaluation.message("LeafCount", "argx", Integer(len(expr)))
+            evaluation.message("LeafCount", "argx", Integer(len(expr)))
+            return
 
         walk_levels(expr[0], start=-1, stop=-1, heads=True, callback=callback)
         return Integer(len(elements))

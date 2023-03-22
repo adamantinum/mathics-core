@@ -15,7 +15,6 @@ from mathics.core.atoms import Complex, Integer, MachineReal, Real, String
 from mathics.core.convert.expression import to_expression, to_mathics_list
 from mathics.core.convert.mpmath import from_mpmath
 from mathics.core.expression import Expression
-from mathics.core.number import dps
 from mathics.core.read import SymbolEndOfFile
 from mathics.core.streams import stream_manager
 from mathics.core.symbols import Symbol
@@ -193,7 +192,7 @@ class _BinaryFormat:
             else:
                 result = mpmath.fdiv(core, 2**-exp)
 
-            return from_mpmath(result, dps(112))
+            return from_mpmath(result, precision=112)
 
     @staticmethod
     def _TerminatedString_reader(s):
@@ -1016,12 +1015,14 @@ class BinaryWrite(Builtin):
                 x_py = x.get_int_value()
 
             if x_py is None:
-                return evaluation.message(SymbolBinaryWrite, "nocoerce", b)
+                evaluation.message(SymbolBinaryWrite, "nocoerce", b)
+                return
 
             try:
                 self.writers[t](stream.io, x_py)
             except struct.error:
-                return evaluation.message(SymbolBinaryWrite, "nocoerce", b)
+                evaluation.message(SymbolBinaryWrite, "nocoerce", b)
+                return
             i += 1
 
         try:

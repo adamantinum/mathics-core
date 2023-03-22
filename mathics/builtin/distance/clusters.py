@@ -13,11 +13,11 @@ from mathics.algorithm.clusters import (
     kmeans,
     optimize,
 )
-from mathics.algorithm.parts import walk_levels
 from mathics.builtin.base import Builtin
 from mathics.builtin.options import options_to_rules
-from mathics.core.atoms import Integer, Real, String, machine_precision, min_prec
+from mathics.core.atoms import FP_MANTISA_BINARY_DIGITS, Integer, Real, String, min_prec
 from mathics.core.convert.expression import to_mathics_list
+from mathics.core.evaluation import Evaluation
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
 from mathics.core.symbols import Symbol, strip_context
@@ -34,6 +34,7 @@ from mathics.eval.distance import (
     to_real_distance,
 )
 from mathics.eval.nevaluator import eval_N
+from mathics.eval.parts import walk_levels
 
 
 class _LazyDistances(LazyDistances):
@@ -233,7 +234,7 @@ class _Cluster(Builtin):
         # compute epsilon similar to Real.__eq__, such that "numbers that differ in their last seven binary digits
         # are considered equal"
 
-        prec = min_prec(*items) or machine_precision
+        prec = min_prec(*items) or FP_MANTISA_BINARY_DIGITS
         eps = 0.5 ** (prec - 7)
 
         return kmeans(numeric_p, repr_p, py_k, mode, py_seed, eps)
@@ -265,7 +266,7 @@ class ClusteringComponents(_Cluster):
 
     summary_text = "label data with the index of the cluster it is in"
 
-    def eval(self, p, evaluation, options):
+    def eval(self, p, evaluation: Evaluation, options: dict):
         "ClusteringComponents[p_, OptionsPattern[%(name)s]]"
         return self._cluster(
             p,
@@ -276,7 +277,7 @@ class ClusteringComponents(_Cluster):
             Expression(SymbolClusteringComponents, p, *options_to_rules(options)),
         )
 
-    def eval_manual_k(self, p, k: Integer, evaluation, options):
+    def eval_manual_k(self, p, k: Integer, evaluation: Evaluation, options: dict):
         "ClusteringComponents[p_, k_Integer, OptionsPattern[%(name)s]]"
         return self._cluster(
             p,
@@ -346,7 +347,7 @@ class FindClusters(_Cluster):
 
     summary_text = "divide data into lists of similar elements"
 
-    def eval(self, p, evaluation, options):
+    def eval(self, p, evaluation: Evaluation, options: dict):
         "FindClusters[p_, OptionsPattern[%(name)s]]"
         return self._cluster(
             p,
@@ -357,7 +358,7 @@ class FindClusters(_Cluster):
             Expression(SymbolFindClusters, p, *options_to_rules(options)),
         )
 
-    def eval_manual_k(self, p, k: Integer, evaluation, options):
+    def eval_manual_k(self, p, k: Integer, evaluation: Evaluation, options: dict):
         "FindClusters[p_, k_Integer, OptionsPattern[%(name)s]]"
         return self._cluster(
             p,
@@ -422,7 +423,9 @@ class Nearest(Builtin):
     }
     summary_text = "the nearest element from a list"
 
-    def eval(self, items, pivot, limit, expression, evaluation, options):
+    def eval(
+        self, items, pivot, limit, expression, evaluation: Evaluation, options: dict
+    ):
         "Nearest[items_, pivot_, limit_, OptionsPattern[%(name)s]]"
 
         method = self.get_option(options, "Method", evaluation)

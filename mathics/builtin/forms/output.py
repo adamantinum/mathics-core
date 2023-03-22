@@ -1,21 +1,23 @@
 # FIXME: split these forms up further.
-# MathML and TeXForm feel more closely related since they go with specific kinds of interpreters:
-# LaTeX and MathML
+# MathML and TeXForm feel more closely related since they go with
+# specific kinds of interpreters: LaTeX and MathML
 
-# SympyForm and PythonForm feel related since are our own hacky thing (and mostly broken for now)
+# SympyForm and PythonForm feel related since are our own hacky thing
+# (and mostly broken for now)
 
-# NumberForm, TableForm, and MatrixForm seem closely related since they seem to be relevant
-# for particular kinds of structures rather than applicable to all kinds of expressions.
+# NumberForm, TableForm, and MatrixForm seem closely related since
+# they seem to be relevant for particular kinds of structures rather
+# than applicable to all kinds of expressions.
 
 """
 Forms which appear in '$OutputForms'.
 """
 import re
+from math import ceil
 from typing import Optional
 
 from mathics.builtin.base import Builtin
 from mathics.builtin.box.layout import GridBox, RowBox, to_boxes
-from mathics.builtin.comparison import expr_min
 from mathics.builtin.forms.base import FormBaseClass
 from mathics.builtin.makeboxes import MakeBoxes, number_form
 from mathics.builtin.tensors import get_dimensions
@@ -30,7 +32,12 @@ from mathics.core.atoms import (
 from mathics.core.evaluation import Evaluation
 from mathics.core.expression import BoxError, Expression
 from mathics.core.list import ListExpression
-from mathics.core.number import convert_base, dps, machine_precision, reconstruct_digits
+from mathics.core.number import (
+    LOG2_10,
+    RECONSTRUCT_MACHINE_PRECISION_DIGITS,
+    convert_base,
+    dps,
+)
 from mathics.core.symbols import (
     Symbol,
     SymbolFalse,
@@ -50,7 +57,8 @@ from mathics.core.systemsymbols import (
     SymbolSubscriptBox,
     SymbolSuperscriptBox,
 )
-from mathics.eval.makeboxes import format_element
+from mathics.eval.makeboxes import StringLParen, StringRParen, format_element
+from mathics.eval.testing_expressions import expr_min
 
 MULTI_NEWLINE_RE = re.compile(r"\n{2,}")
 
@@ -117,10 +125,10 @@ class BaseForm(Builtin):
 
         if isinstance(expr, PrecisionReal):
             x = expr.to_sympy()
-            p = reconstruct_digits(expr.get_precision())
+            p = int(ceil(expr.get_precision() / LOG2_10) + 1)
         elif isinstance(expr, MachineReal):
             x = expr.value
-            p = reconstruct_digits(machine_precision)
+            p = RECONSTRUCT_MACHINE_PRECISION_DIGITS
         elif isinstance(expr, Integer):
             x = expr.value
             p = 0
@@ -130,7 +138,8 @@ class BaseForm(Builtin):
         try:
             val = convert_base(x, base, p)
         except ValueError:
-            return evaluation.message("BaseForm", "basf", n)
+            evaluation.message("BaseForm", "basf", n)
+            return
 
         if f is SymbolOutputForm:
             return to_boxes(String("%s_%d" % (val, base)), evaluation)
@@ -273,7 +282,7 @@ class _NumberForm(Builtin):
         "sigz": "In addition to the number of digits requested, one or more zeros will appear as placeholders.",
     }
 
-    def check_options(self, options, evaluation: Evaluation):
+    def check_options(self, options: dict, evaluation: Evaluation):
         """
         Checks options are valid and converts them to python.
         """
@@ -311,7 +320,7 @@ class _NumberForm(Builtin):
             result = [nleft, nright]
             if None not in result:
                 return result
-        return evaluation.message(self.get_name(), "dblk", value)
+        evaluation.message(self.get_name(), "dblk", value)
 
     def check_ExponentFunction(self, value, evaluation: Evaluation):
         if value.sameQ(SymbolAutomatic):
@@ -346,7 +355,8 @@ class _NumberForm(Builtin):
     def check_ExponentStep(self, value, evaluation: Evaluation):
         result = value.get_int_value()
         if result is None or result <= 0:
-            return evaluation.message(self.get_name(), "estep", "ExponentStep", value)
+            evaluation.message(self.get_name(), "estep", "ExponentStep", value)
+            return
         return result
 
     def check_SignPadding(self, value, evaluation: Evaluation):
@@ -354,14 +364,14 @@ class _NumberForm(Builtin):
             return True
         elif value.sameQ(SymbolFalse):
             return False
-        return evaluation.message(self.get_name(), "opttf", value)
+        evaluation.message(self.get_name(), "opttf", value)
 
     def _check_List2str(self, value, msg, evaluation: Evaluation):
         if value.has_form("List", 2):
             result = [element.get_string_value() for element in value.elements]
             if None not in result:
                 return result
-        return evaluation.message(self.get_name(), msg, value)
+        evaluation.message(self.get_name(), msg, value)
 
     def check_NumberSigns(self, value, evaluation: Evaluation):
         return self._check_List2str(value, "nsgn", evaluation)
@@ -744,8 +754,12 @@ class OutputForm(FormBaseClass):
      = f'[x]
     >> OutputForm[Derivative[1, 0][f][x]]
      = Derivative[1, 0][f][x]
-    >> OutputForm["A string"]
-     = A string
+
+    'OutputForm' is used by default:
+    >> OutputForm[{"A string", a + b}]
+     = {A string, a + b}
+    >> {"A string", a + b}
+     = {A string, a + b}
     >> OutputForm[Graphics[Rectangle[]]]
      = -Graphics-
     """
@@ -840,11 +854,8 @@ class StandardForm(FormBaseClass):
     </dl>
 
     >> StandardForm[a + b * c]
-     = a + b c
+     = a+b c
     >> StandardForm["A string"]
-     = A string
-    'StandardForm' is used by default:
-    >> "A string"
      = A string
     >> f'[x]
      = f'[x]
@@ -1058,12 +1069,12 @@ class MatrixForm(TableForm):
     in_printforms = False
     summary_text = "format as a matrix"
 
-    def eval_makeboxes_matrix(self, table, f, evaluation, options):
+    def eval_makeboxes_matrix(self, table, form, evaluation, options):
         """MakeBoxes[%(name)s[table_, OptionsPattern[%(name)s]],
-        f:StandardForm|TraditionalForm]"""
+        form:StandardForm|TraditionalForm]"""
 
-        result = super(MatrixForm, self).eval_makeboxes(table, f, evaluation, options)
+        result = super(MatrixForm, self).eval_makeboxes(
+            table, form, evaluation, options
+        )
         if result.get_head_name() == "System`GridBox":
-            return RowBox(String("("), result, String(")"))
-
-        return result
+            return RowBox(StringLParen, result, StringRParen)

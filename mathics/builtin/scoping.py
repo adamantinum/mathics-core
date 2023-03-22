@@ -542,25 +542,16 @@ class Unique(Predefined):
 
     Create a unique symbol with no particular name:
     >> Unique[]
-    = $1
-
-    >> Unique[sym]
-    = sym$1
+    = $...
 
     Create a unique symbol whose name begins with x:
     >> Unique["x"]
-    = x2
-
-    #> $3 = 3;
-    #> Unique[]
-    = $4
+    = x...
 
     #> Unique[{}]
     = {}
 
-    #> Unique[{x, x}]
-     = {x$2, x$3}
-
+    ## FIXME: include the rest of these in test/builtin/test-unique.py
     ## Each use of Unique[symbol] increments $ModuleNumber:
     ## >> {$ModuleNumber, Unique[x], $ModuleNumber}
     ##  = ...
@@ -631,7 +622,8 @@ class Unique(Predefined):
 
         attributes = attributes.get_sequence()
         if len(attributes) > 1:
-            return evaluation.message("Unique", "argrx", Integer(len(attributes) + 1))
+            evaluation.message("Unique", "argrx", Integer(len(attributes) + 1))
+            return
 
         # Check valid symbol variables
         symbols = vars.elements if vars.has_form("List", None) else [vars]
@@ -639,7 +631,8 @@ class Unique(Predefined):
             if not isinstance(symbol, Symbol):
                 text = symbol.get_string_value()
                 if text is None or not is_symbol_name(text):
-                    return evaluation.message("Unique", "usym", symbol)
+                    evaluation.message("Unique", "usym", symbol)
+                    return
 
         # Check valid attributes
         attrs = []

@@ -5,16 +5,19 @@ Sparse Array Functions
 """
 
 
-from mathics.algorithm.parts import walk_parts
 from mathics.builtin.base import Builtin
 from mathics.core.atoms import Integer, Integer0
 from mathics.core.evaluation import Evaluation
 from mathics.core.expression import Expression
 from mathics.core.list import ListExpression
 from mathics.core.symbols import Atom, Symbol
-from mathics.core.systemsymbols import SymbolAutomatic, SymbolRule, SymbolTable
-
-SymbolSparseArray = Symbol("SparseArray")
+from mathics.core.systemsymbols import (
+    SymbolAutomatic,
+    SymbolRule,
+    SymbolSparseArray,
+    SymbolTable,
+)
+from mathics.eval.parts import walk_parts
 
 
 class SparseArray(Builtin):
@@ -25,10 +28,10 @@ class SparseArray(Builtin):
 
     <dl>
       <dt>'SparseArray[$rules$]'
-      <dd>Builds a sparse array acording to the list of $rules$.
+      <dd>Builds a sparse array according to the list of $rules$.
 
       <dt>'SparseArray[$rules$, $dims$]'
-      <dd>Builds a sparse array of dimensions $dims$ acording to the $rules$.
+      <dd>Builds a sparse array of dimensions $dims$ according to the $rules$.
 
       <dt>'SparseArray[$list$]'
       <dd>Builds a sparse representation of $list$.

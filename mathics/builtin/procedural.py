@@ -12,13 +12,12 @@ computational steps to be carried out. Any given procedure might be called \
 at any point during a program's execution, including by other procedures \
 or itself.
 
-Procedural functions are integrated into Mathics symbolic programming \
+Procedural functions are integrated into \Mathics symbolic programming \
 environment.
 """
 
 
 from mathics.builtin.base import BinaryOperator, Builtin, IterationFunction
-from mathics.builtin.patterns import match
 from mathics.core.attributes import (
     A_HOLD_ALL,
     A_HOLD_REST,
@@ -35,6 +34,7 @@ from mathics.core.interrupt import (
 )
 from mathics.core.symbols import Symbol, SymbolFalse, SymbolNull, SymbolTrue
 from mathics.core.systemsymbols import SymbolMatchQ
+from mathics.eval.patterns import match
 
 SymbolWhich = Symbol("Which")
 

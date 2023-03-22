@@ -1,9 +1,9 @@
 # cython: language_level=3
 # -*- coding: utf-8 -*-
 
-# Note: docstring is flowed in documentation. Line breaks in the docstring will appear in the
-# printed output, so be careful not to add them mid-sentence. Line breaks  like \
-# this work though.
+# Note: docstring is flowed in documentation. Line breaks in the
+# docstring will appear in the printed output, so be careful not to
+# add them mid-sentence. Line breaks like \ this work though.
 
 """
 Numerical Functions
@@ -20,9 +20,9 @@ from mathics.core.attributes import A_LISTABLE, A_NUMERIC_FUNCTION, A_PROTECTED
 from mathics.core.convert.sympy import from_sympy
 from mathics.core.evaluation import Evaluation
 from mathics.core.expression import Expression
-from mathics.core.number import machine_epsilon
+from mathics.core.number import MACHINE_EPSILON
 from mathics.core.symbols import SymbolDivide, SymbolMachinePrecision, SymbolTimes
-from mathics.eval.nevaluator import eval_nvalues
+from mathics.eval.nevaluator import eval_NValues
 
 
 def chop(expr, delta=10.0 ** (-10.0)):
@@ -82,14 +82,16 @@ class Chop(Builtin):
 
         delta = delta.round_to_float(evaluation)
         if delta is None or delta < 0:
-            return evaluation.message("Chop", "tolnn")
+            evaluation.message("Chop", "tolnn")
+            return
 
         return chop(expr, delta=delta)
 
 
 class N(Builtin):
     """
-    <url>:WMA link:https://reference.wolfram.com/language/ref/N.html</url>
+    <url>:WMA link:
+    https://reference.wolfram.com/language/ref/N.html</url>
 
     <dl>
     <dt>'N[$expr$, $prec$]'
@@ -171,8 +173,8 @@ class N(Builtin):
     >> % // Precision
      = 20.
 
-    N can also accept an option "Method". This establishes what is the prefered underlying method to
-    compute numerical values:
+    N can also accept an option "Method". This establishes what is the \
+    prefrered underlying method to compute numerical values:
     >> N[F[Pi], 30, Method->"numpy"]
      = F[3.14159265358979300000000000000]
     >> N[F[Pi], 30, Method->"sympy"]
@@ -213,7 +215,7 @@ class N(Builtin):
 
     summary_text = "numerical evaluation to specified precision and accuracy"
 
-    def apply_with_prec(self, expr, prec, evaluation, options=None):
+    def eval_with_prec(self, expr, prec, evaluation, options=None):
         "N[expr_, prec_, OptionsPattern[%(name)s]]"
 
         # If options are passed, set the preference in evaluation, and call again
@@ -236,18 +238,18 @@ class N(Builtin):
             if preference:
                 preference_queue.append(preference)
                 try:
-                    result = self.apply_with_prec(expr, prec, evaluation)
+                    result = self.eval_with_prec(expr, prec, evaluation)
                 except Exception:
                     result = None
                 preference_queue.pop()
                 return result
 
-        return eval_nvalues(expr, prec, evaluation)
+        return eval_NValues(expr, prec, evaluation)
 
-    def apply_N(self, expr, evaluation):
+    def eval_N(self, expr, evaluation: Evaluation):
         """N[expr_]"""
         # TODO: Specialize for atoms
-        return eval_nvalues(expr, SymbolMachinePrecision, evaluation)
+        return eval_NValues(expr, SymbolMachinePrecision, evaluation)
 
 
 class Rationalize(Builtin):
@@ -332,7 +334,7 @@ class Rationalize(Builtin):
             tol = c / q**2
             if abs(i - x) <= tol:
                 return i
-            if tol < machine_epsilon:
+            if tol < MACHINE_EPSILON:
                 break
         return x
 
@@ -344,7 +346,7 @@ class Rationalize(Builtin):
         )
         for i in it:
             p, q = i.as_numer_denom()
-            if abs(x - i) < machine_epsilon:
+            if abs(x - i) < MACHINE_EPSILON:
                 return i
 
     def eval_dx(self, x, dx, evaluation: Evaluation):
@@ -359,7 +361,8 @@ class Rationalize(Builtin):
             or (not py_dx.is_real)
             or py_dx.is_negative
         ):
-            return evaluation.message("Rationalize", "tolnn", dx)
+            evaluation.message("Rationalize", "tolnn", dx)
+            return
         elif py_dx == 0:
             return from_sympy(self.find_exact(py_x))
 

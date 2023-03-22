@@ -3,17 +3,12 @@ This code is the LaTeX-specific part of the homegrown sphinx documentation.
 FIXME: Ditch this and hook into sphinx.
 """
 
-import os.path as osp
 import re
-from os import getenv, listdir
-from types import ModuleType
+from os import getenv
 
-from mathics import builtin, settings
-from mathics.builtin.base import check_requires_list
+from mathics import settings
 from mathics.core.evaluation import Message, Print
-from mathics.core.util import IS_PYPY
 from mathics.doc.common_doc import (
-    CHAPTER_RE,
     CONSOLE_RE,
     DL_ITEM_RE,
     DL_RE,
@@ -28,7 +23,6 @@ from mathics.doc.common_doc import (
     PYTHON_RE,
     QUOTATIONS_RE,
     REF_RE,
-    SECTION_RE,
     SPECIAL_COMMANDS,
     SUBSECTION_END_RE,
     SUBSECTION_RE,
@@ -40,17 +34,12 @@ from mathics.doc.common_doc import (
     DocTests,
     DocText,
     Documentation,
-    MathicsMainDocumentation,
     XMLDoc,
     _replace_all,
-    filter_comments,
     gather_tests,
-    get_doc_name_from_module,
-    get_module_doc,
     get_results_by_test,
     post_sub,
     pre_sub,
-    skip_module_doc,
     sorted_chapters,
 )
 from mathics.doc.utils import slugify
@@ -79,8 +68,18 @@ LATEX_TESTOUT_RE = re.compile(
     r"(?P<content>.*?)\\end\{(?P=tag)\}"
 )
 
-LATEX_TESTOUT_DELIM_RE = re.compile(r",")
-NUMBER_RE = re.compile(r"(\d*(?<!\.)\.\d+|\d+\.(?!\.)\d*|\d+)")
+LATEX_TESTOUT_DELIM_RE = re.compile(r", ")
+
+# The goal of the following pattern is to enclose the numbers included in
+# expressions produced by tests between ```\allowbreak{}```. The pattern matches
+# with negative numbers or positive numbers preceded by a space character.
+# To avoid applying the replacement, what is needed if the number is part of a
+# LaTeX parameter (for instance ```\includegraphics[width=5cm]{...}```)
+# the space before the number must be avoided. For example,
+# ```\includegraphics[width= 5cm]{...}``` must be rewritten as
+# \includegraphics[width=\allowbreak{}5\allowbreak{}cm]{...} which is not a valid
+# LaTeX command.
+NUMBER_RE = re.compile(r"([ -])(\d*(?<!\.)\.\d+|\d+\.(?!\.)\d*|\d+)")
 OUTSIDE_ASY_RE = re.compile(r"(?s)((?:^|\\end\{asy\}).*?(?:$|\\begin\{asy\}))")
 
 
@@ -234,6 +233,19 @@ def escape_latex(text):
     def repl_hypertext(match) -> str:
         tag = match.group("tag")
         content = match.group("content")
+        #
+        # Sometimes it happens that the URL does not
+        # fit in 80 characters. Then, to avoid that
+        # flake8 complains, and also to have a
+        # nice and readable ASCII representation,
+        # we would like to split the URL in several,
+        # lines, having indentation spaces.
+        #
+        # The following line removes these extra
+        # characters, which would spoil the URL,
+        # producing a single line, space-free string.
+        #
+        content = content.replace(" ", "").replace("\n", "")
         if tag == "em":
             return r"\emph{%s}" % content
         elif tag == "url":
@@ -366,13 +378,13 @@ def post_process_latex(result):
         return text
 
     def repl_out_delim(match):
-        return ",\\allowbreak{}"
+        return ",\\allowbreak{} "
 
     def repl_number(match):
         guard = r"\allowbreak{}"
         inter_groups_pre = r"\,\discretionary{\~{}}{\~{}}{}"
         inter_groups_post = r"\discretionary{\~{}}{\~{}}{}"
-        number = match.group(1)
+        number = match.group(1) + match.group(2)
         parts = number.split(".")
         if len(number) <= 3:
             return number
@@ -540,7 +552,7 @@ class LaTeXDocTest(DocTest):
         The key for doc_data is the part/chapter/section{/subsection} test number
         and the value contains Result object data turned into a dictionary.
 
-        In partuclar, each test in the test sequence includes the, input test,
+        In particular, each test in the test sequence includes the, input test,
         the result produced and any additional error output.
         The LaTeX-formatted string fragment is returned.
         """
@@ -656,258 +668,24 @@ class LaTeXDoc(XMLDoc):
         )
 
 
-class LaTeXMathicsMainDocumentation(MathicsMainDocumentation):
+class LaTeXMathicsDocumentation(Documentation):
     def __init__(self, want_sorting=False):
+        self.doc_chapter_fn = LaTeXDocChapter
         self.doc_dir = settings.DOC_DIR
-        self.latex_pcl_path = settings.DOC_LATEX_DATA_PCL
+        self.doc_fn = LaTeXDoc
+        self.doc_data_file = settings.get_doctest_latex_data_path(
+            should_be_readable=True
+        )
+        self.doc_guide_section_fn = LaTeXDocGuideSection
+        self.doc_part_fn = LaTeXDocPart
+        self.doc_section_fn = LaTeXDocSection
+        self.doc_subsection_fn = LaTeXDocSubsection
+        self.doctest_latex_pcl_path = settings.DOCTEST_LATEX_DATA_PCL
         self.parts = []
         self.parts_by_slug = {}
-        self.pymathics_doc_loaded = False
-        self.doc_data_file = settings.get_doc_latex_data_path(should_be_readable=True)
         self.title = "Overview"
-        files = listdir(self.doc_dir)
-        files.sort()
-        appendix = []
 
-        for file in files:
-            part_title = file[2:]
-            if part_title.endswith(".mdoc"):
-                part_title = part_title[: -len(".mdoc")]
-                part = LaTeXDocPart(self, part_title)
-                text = open(osp.join(self.doc_dir, file), "rb").read().decode("utf8")
-                text = filter_comments(text)
-                chapters = CHAPTER_RE.findall(text)
-                for title, text in chapters:
-                    chapter = LaTeXDocChapter(part, title)
-                    text += '<section title=""></section>'
-                    sections = SECTION_RE.findall(text)
-                    for pre_text, title, text in sections:
-                        if title:
-                            section = LaTeXDocSection(
-                                chapter, title, text, operator=None, installed=True
-                            )
-                            chapter.sections.append(section)
-                            subsections = SUBSECTION_RE.findall(text)
-                            for subsection_title in subsections:
-                                subsection = LaTeXDocSubsection(
-                                    chapter,
-                                    section,
-                                    subsection_title,
-                                    text,
-                                )
-                                section.subsections.append(subsection)
-                                pass
-                            pass
-                        else:
-                            section = None
-                        if not chapter.doc:
-                            chapter.doc = LaTeXDoc(pre_text, title, section)
-
-                    part.chapters.append(chapter)
-                if file[0].isdigit():
-                    self.parts.append(part)
-                else:
-                    part.is_appendix = True
-                    appendix.append(part)
-
-        for title, modules, builtins_by_module, start in [
-            (
-                "Reference of Built-in Symbols",
-                builtin.modules,
-                builtin.builtins_by_module,
-                True,
-            )
-        ]:  # nopep8
-            # ("Reference of optional symbols", optional.modules,
-            #  optional.optional_builtins_by_module, False)]:
-
-            builtin_part = LaTeXDocPart(self, title, is_reference=start)
-            modules_seen = set()
-            if want_sorting:
-                module_collection_fn = lambda x: sorted(
-                    modules,
-                    key=lambda module: module.sort_order
-                    if hasattr(module, "sort_order")
-                    else module.__name__,
-                )
-            else:
-                module_collection_fn = lambda x: x
-
-            for module in module_collection_fn(modules):
-                if skip_module_doc(module, modules_seen):
-                    continue
-                title, text = get_module_doc(module)
-                chapter = LaTeXDocChapter(
-                    builtin_part, title, LaTeXDoc(text, title, None)
-                )
-                builtins = builtins_by_module[module.__name__]
-                # FIXME: some Box routines, like RowBox *are*
-                # documented
-                sections = [
-                    builtin
-                    for builtin in builtins
-                    if not builtin.__class__.__name__.endswith("Box")
-                ]
-                if module.__file__.endswith("__init__.py"):
-                    # We have a Guide Section.
-                    name = get_doc_name_from_module(module)
-                    guide_section = self.add_section(
-                        chapter, name, module, operator=None, is_guide=True
-                    )
-                    submodules = [
-                        value
-                        for value in module.__dict__.values()
-                        if isinstance(value, ModuleType)
-                    ]
-
-                    sorted_submodule = lambda x: sorted(
-                        submodules,
-                        key=lambda submodule: submodule.sort_order
-                        if hasattr(submodule, "sort_order")
-                        else submodule.__name__,
-                    )
-
-                    # Add sections in the guide section...
-                    for submodule in sorted_submodule(submodules):
-
-                        # FIXME add an additional mechanism in the module
-                        # to allow a docstring and indicate it is not to go in the
-                        # user manual
-                        if submodule.__doc__ is None:
-                            continue
-                        elif IS_PYPY and submodule.__name__ == "builtins":
-                            # PyPy seems to add this module on its own,
-                            # but it is not something that can be importable
-                            continue
-
-                        if submodule in modules_seen:
-                            continue
-
-                        section = self.add_section(
-                            chapter,
-                            get_doc_name_from_module(submodule),
-                            submodule,
-                            operator=None,
-                            is_guide=False,
-                            in_guide=True,
-                        )
-                        modules_seen.add(submodule)
-                        guide_section.subsections.append(section)
-                        builtins = builtins_by_module[submodule.__name__]
-
-                        subsections = [
-                            builtin
-                            for builtin in builtins
-                            if not builtin.__class__.__name__.endswith("Box")
-                        ]
-                        for instance in subsections:
-                            modules_seen.add(instance)
-                            name = instance.get_name(short=True)
-                            self.add_subsection(
-                                chapter,
-                                section,
-                                instance.get_name(short=True),
-                                instance,
-                                instance.get_operator(),
-                                in_guide=True,
-                            )
-                else:
-                    for instance in sections:
-                        if instance not in modules_seen:
-                            name = instance.get_name(short=True)
-                            self.add_section(
-                                chapter,
-                                instance.get_name(short=True),
-                                instance,
-                                instance.get_operator(),
-                                is_guide=False,
-                                in_guide=False,
-                            )
-                            modules_seen.add(instance)
-                            pass
-                        pass
-                    pass
-                builtin_part.chapters.append(chapter)
-            self.parts.append(builtin_part)
-
-        for part in appendix:
-            self.parts.append(part)
-
-        # set keys of tests
-        for tests in self.get_tests(want_sorting=want_sorting):
-            for test in tests.tests:
-                test.key = (tests.part, tests.chapter, tests.section, test.index)
-
-    def add_section(
-        self,
-        chapter,
-        section_name: str,
-        section_object,
-        operator,
-        is_guide: bool = False,
-        in_guide: bool = False,
-    ):
-        """
-        Adds a DocSection or DocGuideSection
-        object to the chapter, a DocChapter object.
-        "section_object" is either a Python module or a Class object instance.
-        """
-        installed = check_requires_list(getattr(section_object, "requires", []))
-
-        # FIXME add an additional mechanism in the module
-        # to allow a docstring and indicate it is not to go in the
-        # user manual
-        if not section_object.__doc__:
-            return
-        if is_guide:
-            section = LaTeXDocGuideSection(
-                chapter,
-                section_name,
-                section_object.__doc__,
-                section_object,
-                installed=installed,
-            )
-            chapter.guide_sections.append(section)
-        else:
-            section = LaTeXDocSection(
-                chapter,
-                section_name,
-                section_object.__doc__,
-                operator=operator,
-                installed=installed,
-                in_guide=in_guide,
-            )
-            chapter.sections.append(section)
-
-        return section
-
-    def add_subsection(
-        self,
-        chapter,
-        section,
-        subsection_name: str,
-        instance,
-        operator=None,
-        in_guide=False,
-    ):
-        installed = check_requires_list(getattr(instance, "requires", []))
-
-        # FIXME add an additional mechanism in the module
-        # to allow a docstring and indicate it is not to go in the
-        # user manual
-
-        if not instance.__doc__:
-            return
-        subsection = LaTeXDocSubsection(
-            chapter,
-            section,
-            subsection_name,
-            instance.__doc__,
-            operator=operator,
-            installed=installed,
-            in_guide=in_guide,
-        )
-        section.subsections.append(subsection)
+        self.gather_doctest_data()
 
     def latex(
         self,
@@ -1154,6 +932,7 @@ class LaTeXDocSubsection:
         operator=None,
         installed=True,
         in_guide=False,
+        summary_text="",
     ):
         """
         Information that goes into a subsection object. This can be a written text, or

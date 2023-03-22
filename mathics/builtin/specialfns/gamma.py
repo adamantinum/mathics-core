@@ -6,13 +6,9 @@ import sys
 import mpmath
 import sympy
 
-from mathics.builtin.arithmetic import (
-    _MPMathFunction,
-    _MPMathMultiFunction,
-    call_mpmath,
-)
+from mathics.builtin.arithmetic import _MPMathFunction, _MPMathMultiFunction
 from mathics.builtin.base import PostfixOperator, SympyFunction
-from mathics.core.atoms import Integer, Integer0, Integer1, Number
+from mathics.core.atoms import Integer, Integer0, Number
 from mathics.core.attributes import A_LISTABLE, A_NUMERIC_FUNCTION, A_PROTECTED
 from mathics.core.convert.mpmath import from_mpmath
 from mathics.core.convert.python import from_python
@@ -20,13 +16,8 @@ from mathics.core.convert.sympy import from_sympy
 from mathics.core.expression import Expression
 from mathics.core.number import dps, min_prec
 from mathics.core.symbols import Symbol, SymbolSequence
-from mathics.core.systemsymbols import (
-    SymbolAutomatic,
-    SymbolComplexInfinity,
-    SymbolDirectedInfinity,
-    SymbolGamma,
-    SymbolIndeterminate,
-)
+from mathics.core.systemsymbols import SymbolAutomatic, SymbolGamma
+from mathics.eval.arithmetic import call_mpmath
 from mathics.eval.nevaluator import eval_N
 from mathics.eval.numerify import numerify
 
@@ -112,17 +103,6 @@ class Beta(_MPMathMultiFunction):
                 return
 
             result = call_mpmath(mpmath_function, tuple(float_args))
-            if isinstance(result, (mpmath.mpc, mpmath.mpf)):
-                if mpmath.isinf(result) and isinstance(result, mpmath.mpc):
-                    result = SymbolComplexInfinity
-                elif mpmath.isinf(result) and result > 0:
-                    result = Expression(SymbolDirectedInfinity, Integer1)
-                elif mpmath.isinf(result) and result < 0:
-                    result = Expression(SymbolDirectedInfinity, Integer(-1))
-                elif mpmath.isnan(result):
-                    result = SymbolIndeterminate
-                else:
-                    result = from_mpmath(result)
         else:
             prec = min_prec(*args)
             d = dps(prec)
@@ -131,9 +111,7 @@ class Beta(_MPMathMultiFunction):
                 mpmath_args = [x.to_mpmath() for x in args]
                 if None in mpmath_args:
                     return
-                result = call_mpmath(mpmath_function, tuple(mpmath_args))
-                if isinstance(result, (mpmath.mpc, mpmath.mpf)):
-                    result = from_mpmath(result, d)
+                result = call_mpmath(mpmath_function, tuple(mpmath_args), prec)
         return result
 
 
@@ -252,7 +230,8 @@ class Factorial2(PostfixOperator, _MPMathFunction):
             convert_from_fn = from_sympy
             fact2_fn = getattr(sympy, self.sympy_name)
         else:
-            return evaluation.message("Factorial2", "unknownp", preference)
+            evaluation.message("Factorial2", "unknownp", preference)
+            return
 
         try:
             result = fact2_fn(number_arg)
@@ -261,9 +240,8 @@ class Factorial2(PostfixOperator, _MPMathFunction):
             # Maybe an even negative number? Try generic routine
             if is_automatic and fact2_generic:
                 return from_python(fact2_generic(number_arg))
-            return evaluation.message(
-                "Factorial2", "ndf", preference, str(sys.exc_info()[1])
-            )
+            evaluation.message("Factorial2", "ndf", preference, str(sys.exc_info()[1]))
+            return
         return convert_from_fn(result)
 
 

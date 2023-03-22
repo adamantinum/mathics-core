@@ -24,6 +24,7 @@ from mathics.core.convert.op import ascii_operator_to_symbol
 from mathics.core.convert.python import from_bool
 from mathics.core.convert.sympy import from_sympy
 from mathics.core.definitions import Definition
+from mathics.core.evaluation import Evaluation
 from mathics.core.exceptions import MessageException
 from mathics.core.expression import Expression, SymbolDefault
 from mathics.core.interrupt import BreakInterrupt, ContinueInterrupt, ReturnInterrupt
@@ -65,8 +66,10 @@ def check_requires_list(requires: list) -> bool:
         try:
             lib_is_installed = importlib.util.find_spec(package) is not None
         except ImportError:
+            # print("XXX requires import error", requires)
             lib_is_installed = False
         if not lib_is_installed:
+            # print("XXX requires not found error", requires)
             return False
     return True
 
@@ -134,7 +137,7 @@ class Builtin:
 
     For rules including ``OptionsPattern``
     ```
-        def eval_with_options(x, evaluation, options):
+        def eval_with_options(x, evaluation: Evaluation, options: dict):
              '''F[x_Real, OptionsPattern[]]'''
              ...
     ```
@@ -405,7 +408,7 @@ class Builtin:
     def get_operator_display(self) -> Optional[str]:
         return None
 
-    def get_functions(self, prefix="apply", is_pymodule=False):
+    def get_functions(self, prefix="eval", is_pymodule=False):
         from mathics.core.parser import parse_builtin_rule
 
         unavailable_function = self._get_unavailable_function()
@@ -449,7 +452,7 @@ class Builtin:
         of the class. Otherwise, returns ``None``.
         """
 
-        def apply_unavailable(**kwargs):  # will override apply method
+        def eval_unavailable(**kwargs):  # will override apply method
             kwargs["evaluation"].message(
                 "General",
                 "pyimport",  # see inout.py
@@ -457,7 +460,7 @@ class Builtin:
             )
 
         requires = getattr(self, "requires", [])
-        return None if check_requires_list(requires) else apply_unavailable
+        return None if check_requires_list(requires) else eval_unavailable
 
     def get_option_string(self, *params):
         s = self.get_option(*params)
@@ -538,7 +541,7 @@ class IterationFunction(Builtin):
         if iterator.has_form(["List", "Range", "Sequence"], None):
             elements = iterator.elements
             if len(elements) == 1:
-                return self.apply_max(expr, *elements, evaluation)
+                return self.eval_max(expr, *elements, evaluation)
             elif len(elements) == 2:
                 if elements[1].has_form(["List", "Sequence"], None):
                     seq = Expression(SymbolSequence, *(elements[1].elements))
@@ -561,7 +564,7 @@ class IterationFunction(Builtin):
             # FIXME: this should work as an iterator in Python3, not
             # building the sequence explicitly...
             seq = Expression(SymbolSequence, *(imax.evaluate(evaluation).elements))
-            return self.apply_list(expr, i, seq, evaluation)
+            return self.eval_list(expr, i, seq, evaluation)
         elif imax.has_form("List", None):
             seq = Expression(SymbolSequence, *(imax.elements))
             return self.eval_list(expr, i, seq, evaluation)
@@ -742,9 +745,9 @@ class Operator(Builtin):
 
 
 class Predefined(Builtin):
-    def get_functions(self, prefix="apply", is_pymodule=False) -> List[Callable]:
+    def get_functions(self, prefix="eval", is_pymodule=False) -> List[Callable]:
         functions = list(super().get_functions(prefix))
-        if prefix in ("apply", "eval") and hasattr(self, "evaluate"):
+        if prefix == "eval" and hasattr(self, "evaluate"):
             functions.append((Symbol(self.get_name()), self.evaluate))
         return functions
 
@@ -869,7 +872,7 @@ class SympyFunction(SympyObject):
         sympy_fn = getattr(sympy, self.sympy_name)
         try:
             return from_sympy(run_sympy(sympy_fn, *sympy_args))
-        except:
+        except Exception:
             return
 
     def get_constant(self, precision, evaluation, have_mpmath=False):
@@ -930,14 +933,16 @@ class PatternObject(BuiltinElement, Pattern):
 
     arg_counts: List[int] = []
 
-    def init(self, expr):
-        super().init(expr)
+    def init(self, expr, evaluation: Optional[Evaluation] = None):
+        super().init(expr, evaluation=evaluation)
         if self.arg_counts is not None:
             if len(expr.elements) not in self.arg_counts:
                 self.error_args(len(expr.elements), *self.arg_counts)
         self.expr = expr
-        self.head = Pattern.create(expr.head)
-        self.elements = [Pattern.create(element) for element in expr.elements]
+        self.head = Pattern.create(expr.head, evaluation=evaluation)
+        self.elements = [
+            Pattern.create(element, evaluation=evaluation) for element in expr.elements
+        ]
 
     def error(self, tag, *args):
         raise PatternError(self.get_name(), tag, *args)

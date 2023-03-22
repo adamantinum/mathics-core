@@ -65,7 +65,7 @@ class EllipticE(SympyFunction):
         sympy_arg = numerify(m, evaluation).to_sympy()
         try:
             return from_sympy(sympy.elliptic_e(sympy_arg))
-        except:
+        except Exception:
             return
 
     def eval_phi_m(self, phi, m, evaluation):
@@ -73,7 +73,7 @@ class EllipticE(SympyFunction):
         sympy_args = [numerify(a, evaluation).to_sympy() for a in (phi, m)]
         try:
             return from_sympy(sympy.elliptic_e(*sympy_args))
-        except:
+        except Exception:
             return
 
 
@@ -81,8 +81,11 @@ class EllipticF(SympyFunction):
     """
     <url>
     :Complete elliptic integral of the first kind:
-    https://en.wikipedia.org/wiki/Elliptic_integral#Complete_elliptic_integral_of_the_first_kind</url> (<url>:SymPy:
-    https://docs.sympy.org/latest/modules/functions/special.html#sympy.functions.special.elliptic_integrals.elliptic_f</url>, <url>
+    https://en.wikipedia.org/wiki/\
+Elliptic_integral#Complete_elliptic_integral_of_the_first_kind</url> (<url>
+    :SymPy:
+    https://docs.sympy.org/latest/modules/functions/\
+special.html#sympy.functions.special.elliptic_integrals.elliptic_f</url>, <url>
     :WMA:
     https://reference.wolfram.com/language/ref/EllipticF.html</url>)
 
@@ -94,7 +97,7 @@ class EllipticF(SympyFunction):
     >> EllipticF[0.3, 0.8]
      = 0.303652
 
-    EllipticF is zero when the firt argument is zero:
+    EllipticF is zero when the first argument is zero:
     >> EllipticF[0, 0.8]
      = 0
 
@@ -116,7 +119,7 @@ class EllipticF(SympyFunction):
         sympy_args = [numerify(a, evaluation).to_sympy() for a in (phi, m)]
         try:
             return from_sympy(sympy.elliptic_f(*sympy_args))
-        except:
+        except Exception:
             return
 
 
@@ -163,7 +166,7 @@ class EllipticK(SympyFunction):
         sympy_args = [a.to_sympy() for a in args]
         try:
             return from_sympy(sympy.elliptic_k(*sympy_args))
-        except:
+        except Exception:
             return
 
 
@@ -207,7 +210,7 @@ class EllipticPi(SympyFunction):
         sympy_n = to_numeric_sympy_args(n, evaluation)[0]
         try:
             return from_sympy(sympy.elliptic_pi(sympy_m, sympy_n))
-        except:
+        except Exception:
             return
 
     def eval_n_phi_m(self, n, phi, m, evaluation):
@@ -218,5 +221,5 @@ class EllipticPi(SympyFunction):
         try:
             result = from_sympy(sympy.elliptic_pi(sympy_n, sympy_phi, sympy_m))
             return result
-        except:
+        except Exception:
             return
