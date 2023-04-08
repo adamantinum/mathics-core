@@ -161,7 +161,6 @@ class Integer(Number):
     # clearing the cache and the object store which might be useful in implementing
     # Builtin Share[].
     def __new__(cls, value) -> "Integer":
-
         n = int(value)
         self = cls._integers.get(value)
         if self is None:
@@ -711,7 +710,6 @@ class Complex(Number):
         value = (real, imag)
         self = cls._complex_numbers.get(value)
         if self is None:
-
             self = super().__new__(cls)
             self.real = real
             self.imag = imag
@@ -862,7 +860,6 @@ class Rational(Number):
     # clearing the cache and the object store which might be useful in implementing
     # Builtin Share[].
     def __new__(cls, numerator, denominator=1) -> "Rational":
-
         value = sympy.Rational(numerator, denominator)
         key = (cls, value)
         self = cls._rationals.get(key)
@@ -945,6 +942,9 @@ class Rational(Number):
 
 
 RationalOneHalf = Rational(1, 2)
+RationalMinusOneHalf = Rational(-1, 2)
+MATHICS3_COMPLEX_I = Complex(Integer0, Integer1)
+MATHICS3_COMPLEX_I_NEG = Complex(Integer0, IntegerM1)
 
 
 class String(Atom, BoxElementMixin):
@@ -1034,3 +1034,10 @@ class StringFromPython(String):
         if math.inf == value:
             self.value = "math.inf"
         return self
+
+
+def is_integer_rational_or_real(expr) -> bool:
+    """
+    Return True  is expr is either an Integer, Rational, or Real.
+    """
+    return isinstance(expr, (Integer, Rational, Real))
